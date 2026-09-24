@@ -37,20 +37,27 @@ FEATURE_COLS = [
 
 def load_ohlcv(path: str) -> pd.DataFrame:
     """
-    Load raw OHLCV, tolerant of the two file shapes seen in this project:
-    with a header row, or headerless with extra columns after volume.
+    Load raw OHLCV, tolerant of the file shapes seen in this project:
+    with or without a header row, CRLF line endings, a UTF-8 BOM, and extra
+    columns after volume. Any row that is not a valid bar (e.g. a stray header
+    line) is dropped with a warning instead of crashing.
     Returns a UTC-indexed frame with open/high/low/close/volume only.
     """
+    import warnings
     cols = ["timestamp", "open", "high", "low", "close", "volume"]
-    with open(path) as f:
-        first = f.readline().strip().lower()
-    has_header = first.startswith("timestamp")
-    df = pd.read_csv(path, header=0 if has_header else None,
-                     usecols=range(6), names=None if has_header else cols)
-    df = df[cols] if has_header else df
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-    df = df.drop_duplicates("timestamp").sort_values("timestamp").set_index("timestamp")
-    return df.astype(float)
+    with open(path, encoding="utf-8-sig") as f:
+        has_header = f.readline().strip().lower().startswith("timestamp")
+    df = pd.read_csv(path, header=0 if has_header else None, usecols=range(6),
+                     names=None if has_header else cols, dtype=str, encoding="utf-8-sig")
+    df.columns = cols
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+    for c in cols[1:]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    bad = df.isna().any(axis=1)
+    if bad.any():
+        warnings.warn(f"load_ohlcv: dropped {int(bad.sum())} non-bar row(s) from {path}")
+        df = df[~bad]
+    return df.drop_duplicates("timestamp").sort_values("timestamp").set_index("timestamp")
 
 
 def build_features(ohlcv: pd.DataFrame) -> pd.DataFrame:

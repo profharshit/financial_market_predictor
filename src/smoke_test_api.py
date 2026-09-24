@@ -8,16 +8,17 @@ import os, tempfile, sys
 import numpy as np, pandas as pd
 
 tmp = tempfile.mkdtemp()
-full = pd.read_csv("../data/raw/eurusd_ohlcv.csv")
+from features import load_ohlcv            # handles headerless / headered / CRLF files
+full = load_ohlcv("../data/raw/eurusd_ohlcv.csv").reset_index()
 head, tail = full.iloc[:-400], full.iloc[-400:]
-head.to_csv(f"{tmp}/warm.csv", index=False)
+head.to_csv(f"{tmp}/warm.csv", index=False)   # always written WITH a proper header
 os.environ.update(FMP_WARMUP_CSV=f"{tmp}/warm.csv", FMP_DB_PATH=f"{tmp}/p.db", FMP_API_KEY="secret123")
 
 from fastapi.testclient import TestClient
 import serve_api
 
 H = {"X-API-Key": "secret123"}
-def bar(r): return {k: (r[k] if k == "timestamp" else float(r[k])) for k in ["timestamp","open","high","low","close","volume"]}
+def bar(r): return {k: (r[k].isoformat() if k == "timestamp" else float(r[k])) for k in ["timestamp","open","high","low","close","volume"]}
 ok = lambda c, m: (print(("PASS " if c else "FAIL ") + m), c)[1]
 allok = True
 
@@ -73,7 +74,7 @@ with TestClient(serve_api.app) as c:
 # engine-level: one-bar-at-a-time must equal one big batch (same forecasts, same stop)
 from inference_engine import PredictionEngine
 from features import load_ohlcv
-w = load_ohlcv(f"{tmp}/warm.csv"); t = tail.copy(); t["timestamp"] = pd.to_datetime(t["timestamp"], utc=True); t = t.set_index("timestamp")
+w = load_ohlcv(f"{tmp}/warm.csv"); t = tail.set_index("timestamp")
 e1, e2 = PredictionEngine(serve_api.MODEL_PATH), PredictionEngine(serve_api.MODEL_PATH)
 e1.warm_up(w); e2.warm_up(w)
 single = [e1.on_bars(t.iloc[[i]])[0] for i in range(120)]

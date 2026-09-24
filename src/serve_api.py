@@ -33,6 +33,7 @@ from typing import Literal, Optional
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, model_validator
 
 from features import load_ohlcv
@@ -174,6 +175,11 @@ def _process(bars: list[Bar], mode: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------- endpoints --
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse("/docs")
+
+
 @app.get("/health")
 def health():
     eng: PredictionEngine = state["engine"]
