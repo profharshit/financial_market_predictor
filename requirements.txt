@@ -1,0 +1,25 @@
+# EUR/USD Price Forecaster - Project Dependencies
+#
+# Install with:
+#   pip install -r requirements.txt
+#
+# Or with --break-system-packages on Debian/Ubuntu with system Python:
+#   pip install -r requirements.txt --break-system-packages
+
+# --- data / ML (unchanged) ---
+pandas==3.0.5
+numpy==2.5.3
+dukascopy-python==4.0.1
+xgboost==3.4.1
+scikit-learn==1.9.1
+matplotlib==3.11.2
+mplfinance==0.12.10b0
+joblib==1.6.0
+
+# --- added for the live API (versions verified in the build environment) ---
+scipy>=1.13          # binomial test in train_price_model.py
+fastapi==0.141.1
+uvicorn==0.53.0
+pydantic==2.13.5
+httpx>=0.27          # live_feed.py + FastAPI TestClient in smoke_test_api.py
+httpx2==2.13.1
