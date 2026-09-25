@@ -39,16 +39,21 @@ def to_payload(df: pd.DataFrame) -> list[dict]:
             for ts, r in df.iterrows()]
 
 
+def new_closed_bars(last_ts: pd.Timestamp, now: datetime, fetch_fn=None) -> pd.DataFrame:
+    """Closed hourly bars strictly after `last_ts` (empty frame if none). Used by run_once and the API's /sync."""
+    fetch_fn = fetch_fn or fetch_bars
+    start = (last_ts + pd.Timedelta(hours=1)).to_pydatetime()
+    if start >= now:
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+    bars = fetch_fn(start, now + timedelta(hours=1))
+    return bars[(bars.index > last_ts) & (bars.index + pd.Timedelta(hours=1) <= pd.Timestamp(now))]
+
+
 def run_once(client, headers: dict, fetch_fn=fetch_bars, now: datetime | None = None) -> int:
     """One poll. `client` is anything with .get/.post (httpx.Client or a FastAPI TestClient)."""
     now = now or datetime.now(timezone.utc)
     h = client.get("/health").json()
-    last = pd.Timestamp(h["last_bar_ts"])
-    start = (last + pd.Timedelta(hours=1)).to_pydatetime()
-    if start >= now:
-        return 0
-    bars = fetch_fn(start, now + timedelta(hours=1))
-    bars = bars[(bars.index > last) & (bars.index + pd.Timedelta(hours=1) <= pd.Timestamp(now))]  # closed bars only
+    bars = new_closed_bars(pd.Timestamp(h["last_bar_ts"]), now, fetch_fn)
     if bars.empty:
         return 0
     payload = to_payload(bars)

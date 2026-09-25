@@ -13,6 +13,8 @@ the engine half-updated.
 
 from __future__ import annotations
 
+from collections import deque
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -41,6 +43,7 @@ class PredictionEngine:
         self.hist = pd.DataFrame(columns=OHLCV, dtype=float)
         self.hist.index = pd.DatetimeIndex([], tz="UTC", name="timestamp")
         self.stop = TrailingStopManager(adaptive=True)
+        self.stop_hist: deque = deque(maxlen=window)   # (level, trend, flip) aligned with self.hist
         self.last_result: dict | None = None
         self.sig_h = self.art["signal_horizon"]
 
@@ -58,12 +61,32 @@ class PredictionEngine:
         return self.hist.index[-1] if len(self.hist) else None
 
     # --------------------------------------------------------------- warm-up
-    def warm_up(self, ohlcv: pd.DataFrame) -> None:
-        """Feed history (UTC-indexed OHLCV). Stop state sees ALL of it; features keep the last `window`."""
+    def warm_up(self, ohlcv: pd.DataFrame, predict_last: bool = True) -> None:
+        """
+        Feed history (UTC-indexed OHLCV). The stop state sees ALL of it; features keep the last
+        `window` bars. With predict_last, the final bar is pushed through on_bars() so /latest
+        and the dashboard have a prediction immediately after startup.
+        """
         ohlcv = ohlcv[OHLCV].astype(float).sort_index()
+        body = ohlcv.iloc[:-1] if (predict_last and len(ohlcv) > MIN_BARS) else ohlcv
         self.stop.reset()
-        self.stop.warm_up(ohlcv)
-        self.hist = ohlcv.tail(self.window).copy()
+        self.stop_hist.clear()
+        for h, l, c in zip(body["high"].to_numpy(), body["low"].to_numpy(), body["close"].to_numpy()):
+            st = self.stop.update(float(h), float(l), float(c))
+            self.stop_hist.append((st["stop"], st["trend"], "buy" if st["buy"] else "sell" if st["sell"] else None))
+        self.hist = body.tail(self.window).copy()
+        if body is not ohlcv:
+            self.on_bars(ohlcv.iloc[[-1]])
+
+    def recent(self, limit: int = 300) -> dict:
+        """Last `limit` bars + the stop that was live at each one (for charting)."""
+        n = min(limit, len(self.hist), len(self.stop_hist))
+        h, st = self.hist.tail(n), list(self.stop_hist)[-n:]
+        return {
+            "bars": [{"t": ts.isoformat(), "o": r.open, "h": r.high, "l": r.low, "c": r.close, "v": r.volume}
+                     for ts, r in h.iterrows()],
+            "stop": [{"level": a, "trend": b, "flip": c} for a, b, c in st],
+        }
 
     # ------------------------------------------------------------ validation
     def _validate(self, new: pd.DataFrame) -> list[str]:
@@ -105,6 +128,7 @@ class PredictionEngine:
         gap_ref = prev_last
         for i, (ts, bar) in enumerate(bars.iterrows()):
             st = self.stop.update(bar["high"], bar["low"], bar["close"])
+            self.stop_hist.append((st["stop"], st["trend"], "buy" if st["buy"] else "sell" if st["sell"] else None))
             warns = []
             if gap_ref is not None:
                 gap_h = (ts - gap_ref).total_seconds() / 3600

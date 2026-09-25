@@ -27,15 +27,16 @@ import os
 import secrets
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field, model_validator
 
+import live_feed
 from features import load_ohlcv
 from inference_engine import BarRejected, PredictionEngine
 from store import Store
@@ -44,9 +45,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("FMP_MODEL_PATH", os.path.join(HERE, "../models/eurusd_price_model.joblib"))
 WARMUP_CSV = os.environ.get("FMP_WARMUP_CSV", os.path.join(HERE, "../data/raw/eurusd_ohlcv.csv"))
 DB_PATH = os.environ.get("FMP_DB_PATH", os.path.join(HERE, "../data/predictions.db"))
+UI_PATH = os.path.join(HERE, "../ui/index.html")
 METRICS_PATH = os.path.join(HERE, "../outputs/price_model_metrics.json")
 API_KEY = os.environ.get("FMP_API_KEY")
-CORS = os.environ.get("FMP_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+# Default "*" so a dashboard opened as a local file:// page (Origin: null) or a
+# quick static server on any port can reach the API without extra setup. This
+# is a local dev/prototype default - restrict it (comma-separated origins) once
+# this is exposed beyond your own machine.
+CORS = os.environ.get("FMP_CORS_ORIGINS", "*").split(",")
 MAX_MOVE = float(os.environ.get("FMP_MAX_BAR_MOVE", "0.03"))
 
 state: dict = {}
@@ -177,7 +183,14 @@ def _process(bars: list[Bar], mode: str) -> list[dict]:
 # ---------------------------------------------------------------- endpoints --
 @app.get("/", include_in_schema=False)
 def root():
-    return RedirectResponse("/docs")
+    return RedirectResponse("/ui")
+
+
+@app.get("/ui", include_in_schema=False)
+def ui():
+    if not os.path.exists(UI_PATH):
+        raise HTTPException(404, f"dashboard file not found at {os.path.abspath(UI_PATH)} - copy ui/index.html there")
+    return FileResponse(UI_PATH, media_type="text/html")
 
 
 @app.get("/health")
@@ -236,3 +249,33 @@ def history(limit: int = Query(100, ge=1, le=2000), mode: Optional[Literal["live
 def forward_test(mode: Optional[Literal["live", "replay"]] = None):
     """Scorecard on bars the model never saw. Band coverage should sit near 0.80."""
     return state["store"].forward_stats(mode)
+
+
+@app.get("/bars", dependencies=[Depends(require_key)])
+def bars(limit: int = Query(300, ge=10, le=600)):
+    """Recent bars + the stop level that was live at each one - what the dashboard chart draws."""
+    return state["engine"].recent(limit)
+
+
+@app.post("/sync", dependencies=[Depends(require_key)])
+def sync():
+    """
+    Pull every CLOSED hourly bar since the engine's last bar from Dukascopy and run it through the
+    engine (one bar -> live, many -> replay). Needs internet access from the machine running the API.
+    """
+    eng: PredictionEngine = state["engine"]
+    try:
+        new = live_feed.new_closed_bars(eng.last_ts, datetime.now(timezone.utc))
+    except Exception as e:
+        raise HTTPException(502, f"could not fetch data from Dukascopy: {e}")
+    if new.empty:
+        return {"added": 0, "last_bar_ts": eng.last_ts.isoformat()}
+    payload = [Bar(timestamp=ts.to_pydatetime(), open=r.open, high=r.high, low=r.low,
+                   close=r.close, volume=r.volume) for ts, r in new.iterrows()]
+    try:
+        _process(payload, mode="live" if len(payload) == 1 else "replay")
+    except HTTPException as e:
+        if e.status_code == 409:                       # another sync got there first
+            return {"added": 0, "last_bar_ts": eng.last_ts.isoformat()}
+        raise
+    return {"added": len(payload), "last_bar_ts": eng.last_ts.isoformat()}
