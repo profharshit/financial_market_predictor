@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EUR/USD Forecast</title>
+<style>
+  :root {
+    --bg: #f5f6fb; --card: #ffffff; --ink: #0e1428; --muted: #6b7591; --line: #e6e9f2;
+    --accent: #5b5bf0; --accent-soft: rgba(91,91,240,.12);
+    --up: #0f9d7a; --down: #e0464b; --warn: #9a6700; --warn-bg: #fff6df;
+    --shadow: 0 1px 2px rgba(14,20,40,.05), 0 10px 30px rgba(14,20,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0f1e; --card: #121a30; --ink: #e9edf8; --muted: #8b95b3; --line: #222c48;
+      --accent: #8f90ff; --accent-soft: rgba(143,144,255,.16);
+      --up: #2fcfa4; --down: #ff6f74; --warn: #f2bd52; --warn-bg: #2b2411; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 20px 48px; }
+
+  /* header */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--accent), #22c1c3);
+          display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; letter-spacing: .3px; }
+  h1 { margin: 0; font-size: 19px; letter-spacing: -.2px; }
+  .sub { margin: 0; color: var(--muted); font-size: 13px; }
+  .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; font-size: 13px;
+          background: var(--card); border: 1px solid var(--line); color: var(--muted); }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .pill.ok i { background: var(--up); box-shadow: 0 0 0 3px color-mix(in srgb, var(--up) 22%, transparent); }
+  .pill.stale i { background: #e8a317; }
+  .pill.err i { background: var(--down); }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+  .toggle input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; margin: 0; transition: .15s; }
+  .toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .toggle input:checked { background: var(--accent); }
+  .toggle input:checked::after { left: 16px; }
+  button { font: inherit; cursor: pointer; }
+  .btn { border: 0; background: var(--accent); color: #fff; padding: 9px 16px; border-radius: 10px; font-weight: 600; font-size: 14px; transition: .15s; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: .6; cursor: progress; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* notices */
+  .notice { display: none; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; font-size: 14px; border: 1px solid var(--line); background: var(--card); }
+  .notice.show { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .notice.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+  .notice.bad { background: color-mix(in srgb, var(--down) 12%, var(--card)); color: var(--down); border-color: transparent; }
+  .notice input { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; }
+  .notice button { border: 0; background: var(--accent); color: #fff; border-radius: 8px; padding: 6px 12px; }
+  .disclaimer { color: var(--muted); font-size: 13px; margin: 2px 2px 16px; display: none; }
+  .disclaimer.show { display: block; }
+
+  /* cards */
+  .grid { display: grid; gap: 14px; }
+  .kpis { grid-template-columns: repeat(4, 1fr); margin-bottom: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  .kpi .val { font-size: 26px; font-weight: 700; letter-spacing: -.5px; margin: 4px 0 2px; }
+  .kpi .val.sm { font-size: 22px; }
+  .kpi .note { font-size: 13px; color: var(--muted); }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .chip { display: inline-block; padding: 2px 10px; border-radius: 8px; font-size: 20px; font-weight: 700; letter-spacing: .3px; }
+  .chip.HOLD { background: var(--line); color: var(--muted); }
+  .chip.BUY { background: color-mix(in srgb, var(--up) 16%, transparent); color: var(--up); }
+  .chip.SELL { background: color-mix(in srgb, var(--down) 16%, transparent); color: var(--down); }
+
+  .chart-card { padding: 14px 16px 10px; margin-bottom: 14px; }
+  .chart-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .chart-head h2, .card h2 { margin: 0; font-size: 15px; letter-spacing: -.1px; }
+  .seg { display: inline-flex; background: var(--bg); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 5px 12px; border-radius: 8px; font-size: 13px; }
+  .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); margin: 6px 0 2px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend b { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+  .legend .fan { height: 10px; border-radius: 3px; background: var(--accent-soft); border: 1px solid var(--accent); }
+  #chart { position: relative; width: 100%; }
+  #chart svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+  #tip { position: absolute; pointer-events: none; display: none; z-index: 5; background: var(--ink); color: var(--card); padding: 8px 10px;
+         border-radius: 10px; font-size: 12.5px; line-height: 1.5; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  #tip .t { opacity: .7; }
+  .empty { padding: 60px 0; text-align: center; color: var(--muted); }
+
+  .two { grid-template-columns: 1.6fr 1fr; align-items: start; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; padding: 8px 8px; border-bottom: 1px solid var(--line); }
+  td { text-align: right; padding: 11px 8px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  tr:last-child td { border-bottom: 0; }
+  td.h { font-weight: 700; }
+  td .m { color: var(--muted); font-size: 12px; display: block; }
+  .scroll { overflow-x: auto; }
+  .foot { margin: 10px 2px 0; font-size: 12.5px; color: var(--muted); }
+  .hint { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  footer { margin-top: 22px; color: var(--muted); font-size: 12.5px; text-align: center; }
+
+  @media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, 1fr); } .two { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) { .kpis { grid-template-columns: 1fr 1fr; } .kpi .val { font-size: 21px; } .wrap { padding: 16px 12px 40px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="logo">€/$</div>
+      <div><h1>EUR/USD Forecast</h1><p class="sub">Price bands &amp; adaptive trailing stop · hourly</p></div>
+    </div>
+    <div class="actions">
+      <span id="status" class="pill"><i></i><span>Loading…</span></span>
+      <label class="toggle" title="Fetch new bars and refresh every 5 minutes"><input type="checkbox" id="auto"> Auto-sync</label>
+      <button class="btn" id="sync">Sync latest data</button>
+    </div>
+  </header>
+
+  <div id="notice" class="notice" role="status"></div>
+  <p id="disclaimer" class="disclaimer">Research prototype. Backtests with trading costs found no verified edge, so the bands describe uncertainty; they are not trading advice.</p>
+
+  <section class="grid kpis">
+    <div class="card kpi"><div class="label">Last close</div><div class="val" id="k-close">–</div><div class="note" id="k-close-n">&nbsp;</div></div>
+    <div class="card kpi"><div class="label">Trailing stop</div><div class="val" id="k-stop">–</div><div class="note" id="k-stop-n">&nbsp;</div></div>
+    <div class="card kpi"><div class="label">Signal</div><div class="val"><span class="chip HOLD" id="k-sig">–</span></div><div class="note" id="k-sig-n">&nbsp;</div></div>
+    <div class="card kpi"><div class="label">Next hour · 80% range</div><div class="val sm" id="k-next">–</div><div class="note" id="k-next-n">&nbsp;</div></div>
+  </section>
+
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Price, stop &amp; forecast</h2>
+      <div class="seg" id="range" role="group" aria-label="Bars shown">
+        <button data-n="60">60h</button><button data-n="120" class="on">120h</button><button data-n="240">240h</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span><b style="background:var(--up)"></b>Stop (uptrend)</span>
+      <span><b style="background:var(--down)"></b>Stop (downtrend)</span>
+      <span><i class="fan" style="width:16px"></i>Forecast 80% band</span>
+      <span><b style="background:var(--accent); height:0; border-top:2px dashed var(--accent)"></b>Median forecast</span>
+    </div>
+    <div id="chart"><div class="empty">Loading chart…</div><div id="tip"></div></div>
+  </section>
+
+  <section class="grid two">
+    <div class="card">
+      <h2>Forecast values</h2>
+      <p class="hint">The price is expected to land between <b>Low</b> and <b>High</b> about 8 times out of 10.</p>
+      <div class="scroll"><table id="fc"><thead><tr>
+        <th>Horizon</th><th>Target (UTC)</th><th>Low</th><th>Median</th><th>High</th><th>Band</th><th>Model</th>
+      </tr></thead><tbody></tbody></table></div>
+      <p class="foot" id="fc-foot"></p>
+    </div>
+    <div class="card">
+      <h2>Live scorecard</h2>
+      <p class="hint">How past forecasts did once the real price arrived.</p>
+      <div class="scroll"><table id="sc"><thead><tr>
+        <th>Horizon</th><th>Scored</th><th>In band</th><th>Error vs “no change”</th>
+      </tr></thead><tbody></tbody></table></div>
+      <p class="foot" id="sc-foot"></p>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const store = { get(k) { try { return localStorage.getItem(k) } catch { return null } },
+                set(k, v) { try { localStorage.setItem(k, v) } catch {} } };
+
+let S = { latest: null, bars: [], stops: [], fwd: null, health: null, info: null };
+let rangeN = 120;
+
+/* ------------------------------------------------------------------ api */
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json" };
+  const key = store.get("fmp_key"); if (key) headers["X-API-Key"] = key;
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401) { askKey(); throw new Error("API key required"); }
+  if (!r.ok) { let d = ""; try { d = (await r.json()).detail } catch {} throw new Error(d || `${r.status} ${r.statusText}`); }
+  return r.json();
+}
+
+/* --------------------------------------------------------------- format */
+const f5 = x => x.toFixed(5);
+const f4 = x => x.toFixed(4);
+const f1 = x => x.toFixed(1);
+const when = iso => new Date(iso).toLocaleString("en-GB", { timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+const whenShort = iso => new Date(iso).toLocaleString("en-GB", { timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).replace(",", "");
+const NAMES = { xgb_quantile: "XGBoost", vol_only: "Volatility-only", ridge: "Linear" };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function marketClosed(d) {                     // FX weekend: Fri ~22:00 UTC -> Sun ~21:00 UTC
+  const w = d.getUTCDay(), h = d.getUTCHours();
+  return w === 6 || (w === 5 && h >= 22) || (w === 0 && h < 21);
+}
+
+/* --------------------------------------------------------------- notice */
+function notice(html, kind = "") { const n = $("#notice"); n.className = "notice show " + kind; n.innerHTML = html; }
+function clearNotice() { $("#notice").className = "notice"; }
+function askKey() {
+  notice(`<span>This API needs a key.</span><input id="keyin" type="password" placeholder="X-API-Key" autocomplete="off"><button id="keysave">Save</button>`, "warn");
+  $("#keysave").onclick = () => { store.set("fmp_key", $("#keyin").value.trim()); clearNotice(); load(); };
+}
+
+/* ----------------------------------------------------------------- load */
+async function load() {
+  try {
+    const [health, latest, b, fwd, info] = await Promise.all([
+      api("/health"), api("/latest"), api("/bars?limit=300"), api("/forward-test"), api("/model/info").catch(() => null)]);
+    S = { health, latest, bars: b.bars, stops: b.stop, fwd, info };
+    render();
+  } catch (e) {
+    if (e.message !== "API key required") {
+      setStatus("err", "Can’t reach the API");
+      notice(`Couldn’t load data: ${esc(e.message)}. Is <code>uvicorn serve_api:app</code> running?`, "bad");
+    }
+  }
+}
+
+async function sync(silent = false) {
+  const btn = $("#sync"); btn.disabled = true; btn.textContent = "Syncing…";
+  try {
+    const r = await api("/sync", { method: "POST" });
+    if (!silent || r.added) {
+      notice(r.added ? `Added <b>${r.added}</b> new bar${r.added > 1 ? "s" : ""} · latest ${when(r.last_bar_ts)} UTC`
+                     : `Already up to date · latest bar ${when(r.last_bar_ts)} UTC`);
+      setTimeout(clearNotice, 6000);
+    }
+    await load();
+  } catch (e) {
+    if (e.message !== "API key required") notice(`Sync failed: ${esc(e.message)}`, "bad");
+  } finally { btn.disabled = false; btn.textContent = "Sync latest data"; }
+}
+
+/* --------------------------------------------------------------- render */
+function setStatus(kind, text) { const p = $("#status"); p.className = "pill " + kind; p.lastElementChild.textContent = text; }
+
+function render() {
+  const L = S.latest, H = S.health;
+  const last = new Date(L.as_of), ageH = (Date.now() - last.getTime()) / 3.6e6;
+  const stale = ageH > 3 && !marketClosed(new Date());
+  if (stale) {
+    const d = Math.floor(ageH / 24), h = Math.round(ageH % 24);
+    setStatus("stale", `Data is ${d ? d + "d " : ""}${h}h old`);
+    if (!$("#notice").classList.contains("show"))
+      notice(`Latest bar is <b>${when(L.as_of)} UTC</b>. Click <b>Sync latest data</b> to pull newer bars.`, "warn");
+  } else setStatus("ok", marketClosed(new Date()) ? "Market closed · up to date" : "Up to date");
+
+  $("#disclaimer").classList.toggle("show", !L.signal.edge_verified);
+
+  // KPIs
+  $("#k-close").textContent = f5(L.last_close);
+  $("#k-close-n").textContent = `${when(L.as_of)} UTC`;
+  const ts = L.trailing_stop, up = ts.trend === "up";
+  $("#k-stop").innerHTML = `<span class="${up ? "up" : "down"}">${f5(ts.level)}</span>`;
+  $("#k-stop-n").textContent = `${up ? "▲ uptrend" : "▼ downtrend"} · ${f1(ts.distance_pips)} pips away · width ×${ts.key_multiplier.toFixed(2)}`;
+  const sg = L.signal; const chip = $("#k-sig"); chip.textContent = sg.action; chip.className = "chip " + sg.action;
+  $("#k-sig-n").textContent = sg.action === "HOLD"
+    ? (ts.flip ? "Stop flipped, held back" : "No stop flip on this bar")
+    : `Stop flipped ${sg.action === "BUY" ? "up" : "down"} on this bar`;
+  const f1h = L.forecasts.find(f => f.horizon_bars === 1);
+  $("#k-next").textContent = `${f5(f1h.price_p10)} – ${f5(f1h.price_p90)}`;
+  $("#k-next-n").textContent = `${f1(f1h.band_width_pips)} pips wide · median ${f5(f1h.price_p50)}`;
+
+  // forecast table
+  $("#fc tbody").innerHTML = L.forecasts.map(f => {
+    const bps = f.expected_return_bps;
+    return `<tr><td class="h">+${f.horizon_bars}h</td><td>${whenShort(f.target_ts_est)}</td>
+      <td>${f5(f.price_p10)}</td><td><b>${f5(f.price_p50)}</b><span class="m ${bps >= 0 ? "up" : "down"}">${bps >= 0 ? "+" : ""}${f1(bps)} bps</span></td>
+      <td>${f5(f.price_p90)}</td><td>${f1(f.band_width_pips)} pips</td><td>${esc(NAMES[f.model] || f.model)}</td></tr>`;
+  }).join("");
+  $("#fc-foot").textContent = "Median moves are tiny by design: no model here can reliably call direction. The useful part is how wide the band is.";
+
+  // scorecard
+  const hs = S.fwd.horizons || {}; const keys = Object.keys(hs).sort((a, b) => a - b);
+  if (!keys.length) {
+    $("#sc tbody").innerHTML = `<tr><td colspan="4" style="text-align:left;color:var(--muted)">Nothing scored yet.</td></tr>`;
+    $("#sc-foot").textContent = "Click “Sync latest data” to backfill bars that came after the training data, or leave Auto-sync on to score live bars as they arrive.";
+  } else {
+    $("#sc tbody").innerHTML = keys.map(k => {
+      const h = hs[k], cov = h.band_coverage_p10_p90 * 100, ok = cov >= 70 && cov <= 90;
+      return `<tr><td class="h">+${k}h</td><td>${h.n_resolved}</td>
+        <td><b class="${ok ? "up" : "down"}">${cov.toFixed(0)}%</b><span class="m">target 80%</span></td>
+        <td>${f1(h.mae_pips_model)} vs ${f1(h.mae_pips_naive_no_change)}<span class="m">pips</span></td></tr>`;
+    }).join("");
+    $("#sc-foot").textContent = `“In band” should sit near 80%. Error is the average miss of the median forecast against simply assuming the price stays put. ${S.fwd.pending_unresolved} forecast(s) waiting for their target bar.`;
+  }
+
+  $("#foot").textContent = `Model ${S.health.model_version}` + (S.info ? ` · trained on ${S.info.training_data[0].slice(0, 10)} → ${S.info.training_data[1].slice(0, 10)}` : "") + " · all times UTC";
+  drawChart();
+}
+
+/* ---------------------------------------------------------------- chart */
+const NS = "http://www.w3.org/2000/svg";
+let geom = null;
+
+function palette() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = n => cs.getPropertyValue(n).trim();
+  return { up: g("--up"), down: g("--down"), accent: g("--accent"), ink: g("--ink"), muted: g("--muted"), line: g("--line"), card: g("--card") };
+}
+
+function drawChart() {
+  const box = $("#chart"); if (!S.bars.length || !S.latest) return;
+  const P = palette();
+  const vis = S.bars.slice(-rangeN), st = S.stops.slice(-rangeN), L = S.latest;
+  const W = Math.max(box.clientWidth, 320), H = W < 560 ? 330 : 440;
+  const m = { l: 10, r: 62, t: 14, b: 30 };
+  const FUT = 30, total = vis.length + FUT, iw = W - m.l - m.r, ih = H - m.t - m.b, step = iw / total;
+  const lastI = vis.length - 1, x = i => m.l + (i + 0.5) * step;
+  const fcs = L.forecasts;
+
+  let lo = Infinity, hi = -Infinity;
+  vis.forEach(b => { lo = Math.min(lo, b.l); hi = Math.max(hi, b.h); });
+  st.forEach(s => { lo = Math.min(lo, s.level); hi = Math.max(hi, s.level); });
+  fcs.forEach(f => { lo = Math.min(lo, f.price_p10); hi = Math.max(hi, f.price_p90); });
+  const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+  const y = p => m.t + (hi - p) / (hi - lo) * ih;
+
+  const el = (name, attrs, text) => { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "EUR/USD price chart with trailing stop and forecast bands" });
+  const add = (n) => (svg.appendChild(n), n);
+
+  // future zone + grid
+  add(el("rect", { x: x(lastI) + step / 2, y: m.t, width: W - m.r - (x(lastI) + step / 2), height: ih, fill: P.accent, opacity: .05 }));
+  const ticks = 6;
+  for (let i = 0; i <= ticks; i++) {
+    const p = lo + (hi - lo) * i / ticks, yy = y(p);
+    add(el("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, stroke: P.line, "stroke-width": 1 }));
+    add(el("text", { x: W - m.r + 8, y: yy + 4, fill: P.muted, "font-size": 11 }, f4(p)));
+  }
+  // x labels
+  const every = Math.max(1, Math.ceil(96 / step));
+  for (let i = 0; i < vis.length; i += every) {
+    if (x(i) > x(lastI) - 40 && i !== lastI && i > 0 && x(lastI) - x(i) < 50) continue;
+    const d = new Date(vis[i].t);
+    const lab = d.toLocaleString("en-GB", { timeZone: "UTC", day: "2-digit", month: "short" }) + " " + String(d.getUTCHours()).padStart(2, "0") + ":00";
+    add(el("text", { x: x(i), y: H - 9, fill: P.muted, "font-size": 11, "text-anchor": "middle" }, lab));
+  }
+
+  // candles
+  const bw = Math.max(1.5, step * 0.62);
+  vis.forEach((b, i) => {
+    const c = b.c >= b.o ? P.up : P.down, xx = x(i);
+    add(el("line", { x1: xx, x2: xx, y1: y(b.h), y2: y(b.l), stroke: c, "stroke-width": 1, opacity: .9 }));
+    add(el("rect", { x: xx - bw / 2, y: Math.min(y(b.o), y(b.c)), width: bw, height: Math.max(1, Math.abs(y(b.o) - y(b.c))), fill: c, rx: 1 }));
+  });
+
+  // stop line, coloured per trend run
+  let run = [], runTrend = null;
+  const flush = () => { if (run.length > 1) add(el("polyline", { points: run.join(" "), fill: "none", stroke: runTrend === "up" ? P.up : P.down, "stroke-width": 2, "stroke-linejoin": "round", opacity: .95 })); };
+  st.forEach((s, i) => {
+    if (s.trend !== runTrend) { flush(); run = []; runTrend = s.trend; }
+    run.push(`${x(i).toFixed(1)},${y(s.level).toFixed(1)}`);
+  });
+  flush();
+  // flip markers
+  st.forEach((s, i) => {
+    if (!s.flip) return; const xx = x(i), buy = s.flip === "buy", b = vis[i];
+    const yy = buy ? y(b.l) + 10 : y(b.h) - 10, d = buy ? -1 : 1;
+    add(el("path", { d: `M${xx},${yy + 6 * d} l-5,${-9 * d} l10,0 z`, fill: buy ? P.up : P.down }));
+  });
+
+  // forecast fan
+  const x0 = x(lastI), y0 = y(L.last_close);
+  const pts = key => [[x0, y0], ...fcs.map(f => [x(lastI + f.horizon_bars), y(f[key])])];
+  const hi_ = pts("price_p90"), lo_ = pts("price_p10"), md_ = pts("price_p50");
+  const path = a => a.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  add(el("polygon", { points: path(hi_) + " " + path([...lo_].reverse()), fill: P.accent, opacity: .14 }));
+  add(el("polyline", { points: path(hi_), fill: "none", stroke: P.accent, "stroke-width": 1, opacity: .55 }));
+  add(el("polyline", { points: path(lo_), fill: "none", stroke: P.accent, "stroke-width": 1, opacity: .55 }));
+  add(el("polyline", { points: path(md_), fill: "none", stroke: P.accent, "stroke-width": 1.6, "stroke-dasharray": "4 3" }));
+  fcs.forEach(f => {
+    const xx = x(lastI + f.horizon_bars), yt = y(f.price_p90), yb = y(f.price_p10);
+    add(el("rect", { x: xx - 4, y: yt, width: 8, height: Math.max(2, yb - yt), rx: 3, fill: P.accent, opacity: .3, stroke: P.accent, "stroke-width": 1 }));
+    add(el("circle", { cx: xx, cy: y(f.price_p50), r: 3.2, fill: P.accent }));
+    add(el("text", { x: xx, y: yt - 6, fill: P.accent, "font-size": 11, "font-weight": 600, "text-anchor": "middle" }, "+" + f.horizon_bars + "h"));
+  });
+
+  // last price line + tag
+  add(el("line", { x1: m.l, x2: W - m.r, y1: y0, y2: y0, stroke: P.ink, "stroke-width": 1, "stroke-dasharray": "2 4", opacity: .45 }));
+  add(el("rect", { x: W - m.r + 2, y: y0 - 10, width: m.r - 4, height: 20, rx: 5, fill: P.ink }));
+  add(el("text", { x: W - m.r + 2 + (m.r - 4) / 2, y: y0 + 4, fill: P.card, "font-size": 11, "font-weight": 600, "text-anchor": "middle" }, f4(L.last_close)));
+
+  // hover crosshair
+  const cross = add(el("line", { y1: m.t, y2: m.t + ih, stroke: P.muted, "stroke-width": 1, opacity: 0, "stroke-dasharray": "3 3" }));
+  const hit = add(el("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent" }));
+
+  const tip = $("#tip");
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), k = W / r.width;
+    const px = (ev.clientX - r.left) * k, i = Math.max(0, Math.min(total - 1, Math.floor((px - m.l) / step)));
+    let html;
+    if (i <= lastI) {
+      const b = vis[i], s = st[i];
+      html = `<div class="t">${whenShort(b.t)} UTC</div>O ${f5(b.o)}  H ${f5(b.h)}<br>L ${f5(b.l)}  C <b>${f5(b.c)}</b><br>Stop ${f5(s.level)} (${s.trend})`;
+    } else {
+      const h = i - lastI, f = fcs.reduce((a, c) => Math.abs(c.horizon_bars - h) < Math.abs(a.horizon_bars - h) ? c : a);
+      html = `<div class="t">Forecast +${f.horizon_bars}h · ${whenShort(f.target_ts_est)}</div>Low ${f5(f.price_p10)}<br>Median <b>${f5(f.price_p50)}</b><br>High ${f5(f.price_p90)}`;
+    }
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("opacity", .6);
+    tip.innerHTML = html; tip.style.display = "block";
+    const bx = box.getBoundingClientRect(), tw = tip.offsetWidth;
+    let left = ev.clientX - bx.left + 14; if (left + tw > bx.width) left = ev.clientX - bx.left - tw - 14;
+    tip.style.left = Math.max(0, left) + "px"; tip.style.top = Math.max(0, ev.clientY - bx.top - 20) + "px";
+  };
+  const leave = () => { tip.style.display = "none"; cross.setAttribute("opacity", 0); };
+  hit.addEventListener("pointermove", move); hit.addEventListener("pointerleave", leave);
+
+  box.querySelector("svg")?.remove(); box.querySelector(".empty")?.remove();
+  box.insertBefore(svg, tip);
+}
+
+/* --------------------------------------------------------------- events */
+$("#sync").onclick = () => sync(false);
+$("#range").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  rangeN = +b.dataset.n; [...$("#range").children].forEach(x => x.classList.toggle("on", x === b)); drawChart();
+};
+let timer = null;
+function setAuto(on) {
+  store.set("fmp_auto", on ? "1" : "0"); clearInterval(timer);
+  if (on) timer = setInterval(() => sync(true), 5 * 60 * 1000);
+}
+$("#auto").checked = store.get("fmp_auto") === "1";
+$("#auto").onchange = e => setAuto(e.target.checked);
+setAuto($("#auto").checked);
+new ResizeObserver(() => { clearTimeout(window.__rz); window.__rz = setTimeout(drawChart, 80); }).observe($("#chart"));
+setInterval(() => { if (S.latest) render(); }, 60 * 1000);      // keeps the "data is X old" pill honest
+load();
+</script>
+</body>
+</html>
