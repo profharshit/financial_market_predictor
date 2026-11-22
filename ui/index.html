@@ -1,117 +1,1291 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EUR/USD Forecast — Terminal</title>
-<link rel="stylesheet" href="/ui/static/css/dashboard.css">
+<title>FMIP — Financial Market Intelligence Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════════════ */
+:root{
+  --bg:#050B1F; --bg2:#0A1535; --bg3:#0D1B3E; --card:#0F1E44;
+  --border:#1A2C5A; --border2:#243660;
+  --cyan:#00D4FF; --purple:#7B2FFF; --green:#00FF9D;
+  --orange:#FF6B35; --gold:#FFD700; --red:#FF4466;
+  --white:#FFFFFF; --light:#B8C8E8; --mid:#6E88B0; --dim:#3A4F7A;
+  --font:'Inter',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--light);font-family:var(--font);font-size:14px;line-height:1.5;overflow:hidden}
+
+/* ═══ SHELL ═══ */
+.shell{display:grid;grid-template-columns:230px 1fr;grid-template-rows:52px 1fr;height:100vh}
+
+/* ═══ TOPBAR ═══ */
+.topbar{
+  grid-column:1/-1;display:flex;align-items:center;gap:14px;
+  padding:0 18px;background:var(--bg2);border-bottom:1px solid var(--border);z-index:20
+}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:14px;color:var(--white);flex-shrink:0}
+.logo-icon{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  display:flex;align-items:center;justify-content:center;font-size:15px;
+  box-shadow:0 0 16px rgba(0,212,255,.45)
+}
+.tb-sep{width:1px;height:28px;background:var(--border);flex-shrink:0}
+.ticker{display:flex;gap:18px;flex:1;overflow:hidden}
+.tick{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px}
+.t-label{color:var(--mid);font-weight:500}
+.t-val{color:var(--white);font-family:var(--mono);font-weight:600}
+.t-chg{font-family:var(--mono);font-size:11px}
+.up{color:var(--green)}.down{color:var(--red)}
+.tb-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0}
+.live-dot{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--mid)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 8px var(--green)}50%{opacity:.5;box-shadow:0 0 16px var(--green)}}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--white);cursor:pointer}
+
+/* ═══ SIDEBAR ═══ */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:12px 0;overflow-y:auto;display:flex;flex-direction:column}
+.sb-sec{padding:8px 16px 4px;font-size:10px;font-weight:600;color:var(--dim);letter-spacing:.8px;text-transform:uppercase;margin-top:6px}
+.nav{display:flex;align-items:center;gap:9px;padding:9px 16px;cursor:pointer;font-size:13px;color:var(--mid);border-left:2px solid transparent;transition:all .12s;user-select:none}
+.nav:hover{background:rgba(0,212,255,.04);color:var(--light)}
+.nav.active{background:rgba(0,212,255,.09);color:var(--cyan);border-left-color:var(--cyan)}
+.nav-ico{width:16px;text-align:center;font-size:15px;flex-shrink:0}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px}
+.sb-bottom{margin-top:auto;padding:12px 16px}
+.version{font-size:10px;color:var(--dim);font-family:var(--mono)}
+
+/* ═══ MAIN ═══ */
+.main{
+  overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;
+  background:radial-gradient(ellipse 55% 40% at 85% 8%,rgba(123,47,255,.07) 0%,transparent 60%),
+             radial-gradient(ellipse 45% 55% at 8% 92%,rgba(0,212,255,.05) 0%,transparent 60%),
+             var(--bg)
+}
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ═══ PAGES ═══ */
+.page{display:none;flex-direction:column;gap:16px}
+.page.active{display:flex;animation:fadeUp .25s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ═══ LAYOUT HELPERS ═══ */
+.row{display:flex;gap:14px}
+.f1{flex:1;min-width:0}
+.g2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+
+/* ═══ CARD ═══ */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden}
+.card.c-cyan  {border-color:rgba(0,212,255,.3);box-shadow:0 0 22px rgba(0,212,255,.07)}
+.card.c-purple{border-color:rgba(123,47,255,.3);box-shadow:0 0 22px rgba(123,47,255,.07)}
+.card.c-green {border-color:rgba(0,255,157,.3);box-shadow:0 0 22px rgba(0,255,157,.07)}
+.card.c-orange{border-color:rgba(255,107,53,.3);box-shadow:0 0 22px rgba(255,107,53,.07)}
+.card.c-gold  {border-color:rgba(255,215,0,.3);box-shadow:0 0 22px rgba(255,215,0,.07)}
+.card.c-red   {border-color:rgba(255,68,102,.3);box-shadow:0 0 22px rgba(255,68,102,.07)}
+
+.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.ct{font-size:13px;font-weight:600;color:var(--white);display:flex;align-items:center;gap:7px}
+
+/* ═══ PAGE HEADER ═══ */
+.ph{display:flex;align-items:flex-start;justify-content:space-between}
+.pt{font-size:20px;font-weight:700;color:var(--white)}
+.ps{font-size:12px;color:var(--mid);margin-top:2px}
+.btn-row{display:flex;gap:6px}
+
+/* ═══ BUTTON ═══ */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);transition:all .14s}
+.btn-c{background:rgba(0,212,255,.11);color:var(--cyan);border:1px solid rgba(0,212,255,.28)}
+.btn-c:hover{background:rgba(0,212,255,.2);box-shadow:0 0 14px rgba(0,212,255,.18)}
+.btn-p{background:rgba(123,47,255,.13);color:#AA77FF;border:1px solid rgba(123,47,255,.28)}
+.btn-p:hover{background:rgba(123,47,255,.25)}
+.btn-solid{background:var(--cyan);color:var(--bg);font-weight:700}
+.btn-solid:hover{box-shadow:0 0 18px rgba(0,212,255,.4)}
+
+/* ═══ KPI ═══ */
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.kpi-label{font-size:11px;color:var(--mid);font-weight:500}
+.kpi-ico{font-size:18px}
+.kpi-val{font-size:24px;font-weight:700;color:var(--white);font-family:var(--mono);letter-spacing:-1px}
+.kpi-sub{font-size:11px;color:var(--mid);margin-top:3px}
+.kpi-bar{height:3px;border-radius:2px;margin-top:10px;background:var(--border);overflow:hidden}
+.kpi-fill{height:100%;border-radius:2px;transition:width 1.2s cubic-bezier(.4,0,.2,1)}
+.kpi-stripe{position:absolute;right:0;top:0;bottom:0;width:3px;border-radius:0 10px 10px 0}
+
+/* ═══ BADGE ═══ */
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid}
+.b-cyan  {background:rgba(0,212,255,.12);color:var(--cyan);border-color:rgba(0,212,255,.3)}
+.b-green {background:rgba(0,255,157,.1);color:var(--green);border-color:rgba(0,255,157,.3)}
+.b-purple{background:rgba(123,47,255,.12);color:#AA77FF;border-color:rgba(123,47,255,.3)}
+.b-orange{background:rgba(255,107,53,.12);color:var(--orange);border-color:rgba(255,107,53,.3)}
+.b-gold  {background:rgba(255,215,0,.1);color:var(--gold);border-color:rgba(255,215,0,.3)}
+.b-red   {background:rgba(255,68,102,.12);color:var(--red);border-color:rgba(255,68,102,.3)}
+
+/* ═══ SIGNAL CHIP ═══ */
+.sig{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.sig-green {background:rgba(0,255,157,.1);color:var(--green)}
+.sig-red   {background:rgba(255,68,102,.1);color:var(--red)}
+.sig-gold  {background:rgba(255,215,0,.1);color:var(--gold)}
+.sig-orange{background:rgba(255,107,53,.1);color:var(--orange)}
+.sig-purple{background:rgba(123,47,255,.12);color:#AA77FF}
+.sig-cyan  {background:rgba(0,212,255,.1);color:var(--cyan)}
+
+/* ═══ TABLE ═══ */
+table{width:100%;border-collapse:collapse}
+thead th{font-size:10px;font-weight:600;color:var(--mid);text-align:left;padding:0 0 8px;border-bottom:1px solid var(--border);letter-spacing:.4px}
+tbody tr{border-bottom:1px solid rgba(26,44,90,.45);transition:background .1s;cursor:pointer}
+tbody tr:hover{background:rgba(0,212,255,.04)}
+tbody td{padding:9px 0;font-size:12px}
+tbody tr:last-child{border-bottom:none}
+
+/* ═══ PROGRESS BAR ═══ */
+.pr{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.pr-lbl{font-size:12px;color:var(--light);min-width:110px}
+.pr-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.pr-fill{height:100%;border-radius:3px;transition:width 1.4s cubic-bezier(.4,0,.2,1)}
+.pr-val{font-size:12px;font-family:var(--mono);color:var(--white);min-width:36px;text-align:right}
+
+/* ═══ FEED ═══ */
+.feed-item{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid rgba(26,44,90,.35)}
+.feed-item:last-child{border-bottom:none}
+.fd{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0}
+.f-text{font-size:12px;color:var(--light)}
+.f-time{font-size:10px;color:var(--mid);margin-top:1px;font-family:var(--mono)}
+
+/* ═══ TIMELINE ═══ */
+.tl-item{display:flex;gap:11px}
+.tl-lw{display:flex;flex-direction:column;align-items:center;width:22px;flex-shrink:0}
+.tl-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:3px;box-shadow:0 0 8px currentColor}
+.tl-vert{flex:1;width:1px;background:var(--border);margin:3px 0;min-height:14px}
+.tl-c{padding-bottom:14px}
+.tl-t{font-size:12px;font-weight:600;color:var(--white)}
+.tl-d{font-size:11px;color:var(--mid);margin-top:2px}
+
+/* ═══ HEATMAP ═══ */
+.heatmap{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-bottom:8px}
+.hm-cell{aspect-ratio:1;border-radius:3px;cursor:pointer;transition:transform .1s}
+.hm-cell:hover{transform:scale(1.35);z-index:2}
+
+/* ═══ TAG CLOUD ═══ */
+.tag-cloud{display:flex;flex-wrap:wrap;gap:6px}
+.tag{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;border:1px solid}
+
+/* ═══ TOGGLE ROW ═══ */
+.tog{display:flex;gap:2px;background:var(--bg);border-radius:7px;padding:2px}
+.tog-btn{padding:3px 11px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--mid);font-family:var(--font);transition:all .13s}
+.tog-btn.active{background:var(--card);color:var(--white)}
+
+/* ═══ SELECT ═══ */
+select{background:var(--bg3);border:1px solid var(--border);color:var(--light);border-radius:7px;padding:5px 10px;font-size:12px;font-family:var(--font);cursor:pointer;outline:none}
+select:focus{border-color:var(--cyan)}
+
+/* ═══ DIVIDER ═══ */
+.divider{height:1px;background:var(--border);margin:12px 0}
+
+/* ═══ FORECAST BAND ═══ */
+.fc-band{display:flex;gap:5px;height:54px;margin-bottom:14px}
+.fc-col{flex:1;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px}
+.fc-lbl{font-size:9px;font-family:var(--mono);color:var(--mid)}
+.fc-val{font-size:13px;font-weight:700;font-family:var(--mono)}
+
+/* ═══ TERMINAL BLOCK ═══ */
+.terminal{background:#020810;border:1px solid var(--border2);border-radius:8px;padding:14px;font-family:var(--mono);font-size:11px;line-height:1.8}
+.t-prompt{color:var(--cyan)}
+.t-cmd{color:var(--white)}
+.t-out{color:var(--mid)}
+.t-ok{color:var(--green)}
+.t-err{color:var(--red)}
+
+/* ═══ CANVAS ═══ */
+canvas{display:block;width:100%!important}
+
+/* ═══ PRICE CHART ACTIONS ═══ */
+.chart-actions{display:flex;gap:4px}
+.price-chart-head{display:flex;align-items:center;gap:10px;min-width:0}
+.price-live-meta{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;color:var(--mid);white-space:nowrap}
+.price-live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,157,.65);animation:pricePulse 1.6s infinite}
+.price-pattern{padding:3px 7px;border:1px solid rgba(0,212,255,.22);border-radius:4px;background:rgba(0,212,255,.06);color:var(--cyan);font-family:var(--mono);font-size:9px;letter-spacing:.3px;white-space:nowrap}
+@keyframes pricePulse{50%{opacity:.35}}
+.trade-signal-bar{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:8px 12px;border-top:1px solid var(--border);background:#0A1732;font-family:var(--mono);font-size:9px}
+.trade-signal-main{display:flex;align-items:center;gap:7px;white-space:nowrap}.signal-label{color:var(--mid);letter-spacing:.6px}.trade-signal-main strong{font-size:12px;color:var(--mid)}
+.signal-dot{width:7px;height:7px;border-radius:50%;display:inline-block}.signal-dot.buy{background:var(--green);box-shadow:0 0 8px rgba(0,255,157,.65)}.signal-dot.sell{background:var(--red);box-shadow:0 0 8px rgba(255,68,102,.65)}.signal-dot.wait{background:var(--gold)}
+.signal-confidence{color:var(--mid);border:1px solid var(--border);padding:2px 5px;border-radius:3px}.trade-levels{display:flex;gap:12px;color:var(--mid)}.trade-levels b{color:var(--white);font-weight:600}.signal-note{color:var(--mid);text-align:right;white-space:nowrap}
+@media(max-width:900px){.trade-signal-bar{grid-template-columns:1fr;gap:6px}.signal-note{text-align:left}.trade-levels{justify-content:flex-start}}
+
+.chart-action{width:28px;height:26px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);color:var(--mid);font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .14s}
+.chart-action:hover{color:var(--cyan);border-color:rgba(0,212,255,.45);background:rgba(0,212,255,.08)}
+.price-chart-wrap{height:260px;transition:height .2s ease;background:#0B1734;border-top:1px solid rgba(36,54,96,.55)}
+.price-chart-wrap>div{width:100%;height:100%}
+.price-chart-wrap.minimized{height:0;overflow:hidden}
+.card.price-chart-maximized{position:fixed;inset:70px 28px 28px 258px;z-index:90;width:auto!important;height:auto;display:flex;flex-direction:column;box-shadow:0 0 40px rgba(0,0,0,.5)}
+.card.price-chart-maximized .price-chart-wrap{flex:1;height:auto;min-height:0}
+.card.price-chart-maximized .chart-action:last-child{color:var(--cyan)}
+@media(max-width:900px){.card.price-chart-maximized{inset:62px 12px 12px 12px}.price-chart-wrap{height:200px}}
+
+/* ═══ MODAL ═══ */
+.modal-bg{position:fixed;inset:0;background:rgba(5,11,31,.85);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;min-width:360px;max-width:440px;position:relative}
+.modal h3{font-size:16px;font-weight:700;color:var(--white);margin-bottom:14px}
+.modal-close{position:absolute;top:14px;right:16px;cursor:pointer;color:var(--mid);font-size:18px;line-height:1}
+.modal-close:hover{color:var(--white)}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;color:var(--mid);margin-bottom:4px;font-weight:600}
+.field input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;color:var(--white);font-family:var(--font);outline:none}
+.field input:focus{border-color:var(--cyan)}
+.auth-switch{font-size:12px;color:var(--mid);text-align:center;margin-top:10px}
+.auth-switch span{color:var(--cyan);cursor:pointer}
+.auth-switch span:hover{text-decoration:underline}
+
+/* ═══ API RESPONSE CARD ═══ */
+.api-response{background:#020810;border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11px;line-height:1.7;margin-top:10px;display:none}
+.json-key{color:var(--cyan)}.json-str{color:var(--green)}.json-num{color:var(--orange)}.json-bool{color:var(--purple)}
+</style>
 </head>
 <body>
-<div class="wrap">
 
-  <header>
-    <div class="brand">
-      <div class="logo">€/$</div>
-      <div><h1>EUR/USD Forecast Terminal</h1><p class="sub">Adaptive stop · Lorentzian ANN · Support/Resistance · hourly</p></div>
+<!-- ═══════════ AUTH MODAL ═══════════ -->
+<div class="modal-bg open" id="auth-modal">
+  <div class="modal">
+    <div class="modal-close" onclick="closeAuth()">✕</div>
+    <h3 id="auth-title">🔐 Sign in to FMIP</h3>
+    <div class="field"><label>EMAIL</label><input id="auth-email" type="email" placeholder="analyst@fmip.ai" value="goku@fmip.ai"></div>
+    <div class="field"><label>PASSWORD</label><input id="auth-pass" type="password" placeholder="••••••••" value="••••••••"></div>
+    <div id="auth-name-wrap" class="field" style="display:none"><label>FULL NAME</label><input id="auth-name" type="text" placeholder="Your name"></div>
+    <div id="auth-feedback" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:6px"></div>
+    <button class="btn btn-solid" style="width:100%;justify-content:center;padding:9px" onclick="doAuth()">Sign In</button>
+    <div class="auth-switch">Don't have an account? <span onclick="toggleAuth()">Register</span></div>
+  </div>
+</div>
+
+<!-- ═══════════ SHELL ═══════════ -->
+<div class="shell" id="shell" style="display:none">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-icon">📊</div>
+      <span>FMIP</span>
     </div>
-    <div class="actions">
-      <span id="status" class="pill"><i></i><span>Loading…</span></span>
-      <label class="toggle" title="Fetch new bars and refresh every 5 minutes"><input type="checkbox" id="auto"> Auto-sync</label>
-      <button class="btn" id="sync">Sync latest data</button>
+    <div class="tb-sep"></div>
+    <div class="ticker">
+      <div class="tick"><span class="t-label">EUR/USD</span><span class="t-val" id="t0">1.0847</span><span class="t-chg up" id="c0">+0.12%</span></div>
+      <div class="tick"><span class="t-label">GBP/USD</span><span class="t-val" id="t1">1.2683</span><span class="t-chg down" id="c1">−0.08%</span></div>
+      <div class="tick"><span class="t-label">NIFTY 50</span><span class="t-val" id="t2">24,312</span><span class="t-chg up" id="c2">+0.34%</span></div>
+      <div class="tick"><span class="t-label">SENSEX</span><span class="t-val" id="t3">80,104</span><span class="t-chg down" id="c3">−0.21%</span></div>
+      <div class="tick"><span class="t-label">VIX</span><span class="t-val" id="t4">14.32</span><span class="t-chg up" id="c4">+1.4%</span></div>
+      <div class="tick"><span class="t-label">BTC/USDT</span><span class="t-val" id="t5">—</span><span class="t-chg" id="c5">LIVE</span></div>
+      <div class="tick"><span class="t-label">ETH/USDT</span><span class="t-val" id="t6">—</span><span class="t-chg" id="c6">LIVE</span></div>
+    </div>
+    <div class="tb-right">
+      <div class="live-dot"><div class="dot"></div>Live</div>
+      <div class="tb-sep"></div>
+      <div class="avatar" id="user-avatar">GK</div>
     </div>
   </header>
 
-  <div id="notice" class="notice" role="status"></div>
-  <p id="disclaimer" class="disclaimer">Research prototype. Backtests with trading costs found no verified edge, so bands and the composite signal describe a model and a heuristic — not trading advice.</p>
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sb-sec">Main</div>
+    <div class="nav active" onclick="go('dashboard',this)"><span class="nav-ico">🏠</span>Dashboard</div>
+    <div class="nav" onclick="go('forecast',this)"><span class="nav-ico">📈</span>EUR/USD Forecast</div>
+    <div class="nav" onclick="go('anomaly',this)"><span class="nav-ico">🔍</span>Anomaly Detection<span class="nav-badge">3</span></div>
+    <div class="nav" onclick="go('sentiment',this)"><span class="nav-ico">💬</span>Sentiment & Pump</div>
+    <div class="sb-sec">Platform</div>
+    <div class="nav" onclick="go('api',this)"><span class="nav-ico">🌐</span>API Gateway</div>
+    <div class="nav" onclick="go('security',this)"><span class="nav-ico">🔐</span>Auth & Security</div>
+    <div class="nav" onclick="go('logs',this)"><span class="nav-ico">📋</span>Audit Logs</div>
+    <div class="nav" onclick="go('settings',this)"><span class="nav-ico">⚙️</span>Settings</div>
+    <div class="sb-bottom">
+      <div class="version">v1.0.0-beta · Python · FastAPI</div>
+    </div>
+  </nav>
 
-  <section class="kpis">
-    <div class="card kpi"><div class="label">Last close</div><div class="val" id="k-close">–</div><div class="note" id="k-close-n">&nbsp;</div></div>
-    <div class="card kpi"><div class="label">Trailing stop</div><div class="val" id="k-stop">–</div><div class="note" id="k-stop-n">&nbsp;</div></div>
-    <div class="card kpi"><div class="label">Stop signal</div><div class="val"><span class="chip HOLD" id="k-sig">–</span></div><div class="note" id="k-sig-n">&nbsp;</div></div>
-    <div class="card kpi"><div class="label">Next hour · 80% range</div><div class="val sm" id="k-next">–</div><div class="note" id="k-next-n">&nbsp;</div></div>
-  </section>
+  <!-- MAIN -->
+  <main class="main">
 
-  <div class="layout">
-    <!-- ---------------------------------------------------------- main column -->
-    <div class="main-col">
+    <!-- ════════ DASHBOARD ════════ -->
+    <section class="page active" id="page-dashboard">
+      <div class="ph">
+        <div><div class="pt">Overview</div><div class="ps">Financial Market Intelligence Platform · Live</div></div>
+        <div class="btn-row">
+          <button class="btn btn-c" onclick="refreshDash()">↻ Refresh</button>
+          <button class="btn btn-p">Export Report</button>
+        </div>
+      </div>
 
-      <section class="card chart-card">
-        <div class="chart-head">
-          <h2>Price, volume, stop &amp; forecast</h2>
-          <div class="seg" id="range" role="group" aria-label="Bars shown">
-            <button data-n="60">60h</button><button data-n="120" class="on">120h</button><button data-n="240">240h</button>
+      <div class="g4">
+        <div class="kpi c-cyan"><div class="kpi-stripe" style="background:var(--cyan)"></div>
+          <div class="kpi-top"><div class="kpi-label">Forecast Accuracy</div><div class="kpi-ico">📈</div></div>
+          <div class="kpi-val" id="kv0">78.4%</div><div class="kpi-sub">1h EUR/USD · XGBoost P50</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:78.4%;background:var(--cyan)"></div></div></div>
+        <div class="kpi c-orange"><div class="kpi-stripe" style="background:var(--orange)"></div>
+          <div class="kpi-top"><div class="kpi-label">Anomalies Flagged</div><div class="kpi-ico">⚠️</div></div>
+          <div class="kpi-val" style="color:var(--orange)" id="kv1">3</div><div class="kpi-sub">NSE stocks · last 24 h</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:30%;background:var(--orange)"></div></div></div>
+        <div class="kpi c-red"><div class="kpi-stripe" style="background:var(--red)"></div>
+          <div class="kpi-top"><div class="kpi-label">Pump Signals</div><div class="kpi-ico">🚨</div></div>
+          <div class="kpi-val" style="color:var(--red)" id="kv2">1</div><div class="kpi-sub">High-confidence · Telegram</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:15%;background:var(--red)"></div></div></div>
+        <div class="kpi c-gold"><div class="kpi-stripe" style="background:var(--gold)"></div>
+          <div class="kpi-top"><div class="kpi-label">API Requests</div><div class="kpi-ico">⚡</div></div>
+          <div class="kpi-val" style="color:var(--gold)" id="kv3">2,841</div><div class="kpi-sub">Today · JWT-authenticated</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:62%;background:var(--gold)"></div></div></div>
+      </div>
+
+      <div class="row">
+        <div class="card c-cyan f1">
+          <div class="ch"><div class="price-chart-head"><div class="ct" id="priceAssetTitle">EUR/USD</div><div class="price-live-meta"><span class="price-live-dot"></span><span id="priceFeedStatus">LIVE</span><span id="priceLast">1.08470</span></div><span class="price-pattern" id="pricePattern">SCANNING</span></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="tog asset-tog"><button class="tog-btn active" onclick="switchAsset(this,'EURUSD')">EUR/USD</button><button class="tog-btn" onclick="switchAsset(this,'BTCUSDT')">BTC</button><button class="tog-btn" onclick="switchAsset(this,'ETHUSDT')">ETH</button></div>
+              <div class="tog"><button class="tog-btn active" onclick="switchTog(this,'priceChart')">1H</button><button class="tog-btn" onclick="switchTog(this,'priceChart')">4H</button><button class="tog-btn" onclick="switchTog(this,'priceChart')">1D</button></div>
+              <div class="chart-actions">
+                <button class="chart-action" type="button" title="Minimize chart" aria-label="Minimize chart" onclick="togglePriceChartSize('min')">−</button>
+                <button class="chart-action" type="button" title="Maximize chart" aria-label="Maximize chart" onclick="togglePriceChartSize('max')">⛶</button>
+              </div>
+            </div>
+          </div>
+          <div class="price-chart-wrap" id="priceChartWrap"><div id="priceChart"></div></div>
+          <div class="trade-signal-bar" id="tradeSignalBar">
+            <div class="trade-signal-main"><span class="signal-dot wait" id="signalDot"></span><span class="signal-label">SIGNAL</span><strong id="tradeSignal">WAIT</strong><span class="signal-confidence" id="signalConfidence">—</span></div>
+            <div class="trade-levels"><span>ENTRY <b id="signalEntry">—</b></span><span>SL <b id="signalSL">—</b></span><span>TARGET <b id="signalTP">—</b></span></div>
+            <div class="signal-note" id="signalNote">Waiting for trend + candle confirmation</div>
           </div>
         </div>
-        <div class="legend">
-          <span><b style="background:var(--up)"></b>Stop (uptrend)</span>
-          <span><b style="background:var(--down)"></b>Stop (downtrend)</span>
-          <span><b style="background:var(--lor)"></b>Lorentzian kernel</span>
-          <span><i class="fan" style="width:16px"></i>Forecast 80% band</span>
-          <span><i class="dash" style="color:var(--support)"></i>Support</span>
-          <span><i class="dash" style="color:var(--resistance)"></i>Resistance</span>
+        <div class="card c-purple" style="width:264px;flex-shrink:0">
+          <div class="ch"><div class="ct">🎯 Next 1h Forecast</div><span class="badge b-cyan">P10/50/90</span></div>
+          <div class="fc-band">
+            <div class="fc-col" style="background:rgba(255,68,102,.08)"><div class="fc-lbl">P10</div><div class="fc-val" style="color:var(--red)">1.0821</div></div>
+            <div class="fc-col" style="background:rgba(0,212,255,.13)"><div class="fc-lbl">P50</div><div class="fc-val" style="color:var(--cyan)">1.0852</div></div>
+            <div class="fc-col" style="background:rgba(0,255,157,.08)"><div class="fc-lbl">P90</div><div class="fc-val" style="color:var(--green)">1.0884</div></div>
+          </div>
+          <div class="divider"></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:80px;font-size:11px">Volatility</div><div class="pr-track"><div class="pr-fill" style="width:42%;background:var(--gold)"></div></div><div class="pr-val" style="font-size:11px;color:var(--gold)">0.041%</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:80px;font-size:11px">Confidence</div><div class="pr-track"><div class="pr-fill" style="width:74%;background:var(--cyan)"></div></div><div class="pr-val" style="font-size:11px;color:var(--cyan)">74%</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:80px;font-size:11px">Trail Stop</div><div class="pr-track"><div class="pr-fill" style="width:55%;background:var(--purple)"></div></div><div class="pr-val" style="font-size:11px;color:#AA77FF">1.0808</div></div>
+          <p style="font-size:10px;color:var(--mid);font-style:italic;margin-top:6px">Signal only — no trading edge implied.</p>
         </div>
-        <div id="chart"><div class="empty">Loading chart…</div><div id="tip"></div></div>
-        <div id="volume" aria-label="Volume"></div>
-      </section>
+      </div>
 
-      <section class="two">
+      <div class="row">
+        <div class="card f1">
+          <div class="ch"><div class="ct">🔍 NSE Anomaly Alerts</div><span class="badge b-orange">3 Active</span></div>
+          <table>
+            <thead><tr><th>SYMBOL</th><th>TYPE</th><th>SCORE</th><th>CHANGE</th><th>SIGNAL</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--white);font-weight:600">ADANIPORTS</td><td style="color:var(--mid)">Volume spike</td><td style="font-family:var(--mono);color:var(--red)">−0.61</td><td class="up" style="font-family:var(--mono)">+8.3%</td><td><span class="sig sig-orange">ANOMALY</span></td></tr>
+              <tr><td style="color:var(--white);font-weight:600">ZOMATO</td><td style="color:var(--mid)">Price jump</td><td style="font-family:var(--mono);color:var(--red)">−0.54</td><td class="up" style="font-family:var(--mono)">+5.1%</td><td><span class="sig sig-orange">ANOMALY</span></td></tr>
+              <tr><td style="color:var(--white);font-weight:600">TATAMOTORS</td><td style="color:var(--mid)">VWAP deviation</td><td style="font-family:var(--mono);color:var(--gold)">−0.38</td><td class="down" style="font-family:var(--mono)">−3.2%</td><td><span class="sig sig-gold">WATCH</span></td></tr>
+              <tr><td style="color:var(--white);font-weight:600">RELIANCE</td><td style="color:var(--mid)">Normal</td><td style="font-family:var(--mono);color:var(--green)">+0.12</td><td class="up" style="font-family:var(--mono)">+0.8%</td><td><span class="sig sig-green">NORMAL</span></td></tr>
+              <tr><td style="color:var(--white);font-weight:600">INFY</td><td style="color:var(--mid)">Normal</td><td style="font-family:var(--mono);color:var(--green)">+0.08</td><td class="down" style="font-family:var(--mono)">−0.4%</td><td><span class="sig sig-green">NORMAL</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="width:254px;flex-shrink:0">
+          <div class="ch"><div class="ct">🔔 Activity Feed</div></div>
+          <div class="feed-item"><div class="fd" style="background:var(--red)"></div><div><div class="f-text">Pump signal — SMALLCAP888</div><div class="f-time">2 min ago</div></div></div>
+          <div class="feed-item"><div class="fd" style="background:var(--orange)"></div><div><div class="f-text">Anomaly: ADANIPORTS vol ×4.3</div><div class="f-time">11 min ago</div></div></div>
+          <div class="feed-item"><div class="fd" style="background:var(--cyan)"></div><div><div class="f-text">Forecast updated · 1h band ready</div><div class="f-time">15 min ago</div></div></div>
+          <div class="feed-item"><div class="fd" style="background:var(--green)"></div><div><div class="f-text">JWT auth OK · 142 req/min</div><div class="f-time">15 min ago</div></div></div>
+          <div class="feed-item"><div class="fd" style="background:var(--orange)"></div><div><div class="f-text">Anomaly: ZOMATO +5.1% jump</div><div class="f-time">28 min ago</div></div></div>
+          <div class="feed-item"><div class="fd" style="background:var(--purple)"></div><div><div class="f-text">Sentiment scan complete</div><div class="f-time">34 min ago</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ FORECAST ════════ -->
+    <section class="page" id="page-forecast">
+      <div class="ph">
+        <div><div class="pt">EUR/USD Forecast</div><div class="ps">XGBoost quantile regression · 16,577 hourly bars trained</div></div>
+        <div class="btn-row">
+          <select onchange="buildForecastChart()"><option>1 Hour</option><option>4 Hours</option><option>24 Hours (Benchmark)</option></select>
+          <button class="btn btn-solid" onclick="runPredict()">▶ Run /predict</button>
+        </div>
+      </div>
+
+      <div class="g4">
+        <div class="kpi c-red"><div class="kpi-top"><div class="kpi-label">P10 · Bearish bound</div><div class="kpi-ico">📉</div></div><div class="kpi-val" style="color:var(--red);font-size:20px">1.0821</div><div class="kpi-sub">Lower quantile</div></div>
+        <div class="kpi c-cyan" style="border-color:rgba(0,212,255,.55);box-shadow:0 0 24px rgba(0,212,255,.12)"><div class="kpi-top"><div class="kpi-label">P50 · Median forecast</div><div class="kpi-ico">🎯</div></div><div class="kpi-val" style="font-size:20px">1.0852</div><div class="kpi-sub">Central estimate</div></div>
+        <div class="kpi c-green"><div class="kpi-top"><div class="kpi-label">P90 · Bullish bound</div><div class="kpi-ico">📈</div></div><div class="kpi-val" style="color:var(--green);font-size:20px">1.0884</div><div class="kpi-sub">Upper quantile</div></div>
+        <div class="kpi c-gold"><div class="kpi-top"><div class="kpi-label">Trailing Stop</div><div class="kpi-ico">🛡️</div></div><div class="kpi-val" style="color:var(--gold);font-size:20px">1.0808</div><div class="kpi-sub">Volatility-adaptive</div></div>
+      </div>
+
+      <div class="card c-cyan">
+        <div class="ch"><div class="ct">📊 Quantile Forecast Bands</div><span class="badge b-cyan">Shaded = P10–P90 range</span></div>
+        <canvas id="forecastChart" height="150"></canvas>
+      </div>
+
+      <div class="g2">
         <div class="card">
-          <h2>Forecast values</h2>
-          <p class="hint">The price is expected to land between <b>Low</b> and <b>High</b> about 8 times out of 10.</p>
-          <div class="scroll"><table id="fc"><thead><tr>
-            <th>Horizon</th><th>Target (UTC)</th><th>Low</th><th>Median</th><th>High</th><th>Band</th><th>Model</th>
-          </tr></thead><tbody></tbody></table></div>
-          <p class="foot" id="fc-foot"></p>
+          <div class="ch"><div class="ct">Feature Importance (Top 5)</div></div>
+          <div class="pr"><div class="pr-lbl">RSI (14)</div><div class="pr-track"><div class="pr-fill" style="width:88%;background:var(--cyan)"></div></div><div class="pr-val">0.88</div></div>
+          <div class="pr"><div class="pr-lbl">MACD Signal</div><div class="pr-track"><div class="pr-fill" style="width:74%;background:var(--cyan)"></div></div><div class="pr-val">0.74</div></div>
+          <div class="pr"><div class="pr-lbl">Bollinger %B</div><div class="pr-track"><div class="pr-fill" style="width:66%;background:var(--purple)"></div></div><div class="pr-val">0.66</div></div>
+          <div class="pr"><div class="pr-lbl">ATR Volatility</div><div class="pr-track"><div class="pr-fill" style="width:58%;background:var(--purple)"></div></div><div class="pr-val">0.58</div></div>
+          <div class="pr"><div class="pr-lbl">Price Lag (1h)</div><div class="pr-track"><div class="pr-fill" style="width:51%;background:var(--mid)"></div></div><div class="pr-val">0.51</div></div>
         </div>
         <div class="card">
-          <h2>Live scorecard</h2>
-          <p class="hint">How past forecasts did once the real price arrived.</p>
-          <div class="scroll"><table id="sc"><thead><tr>
-            <th>Horizon</th><th>Scored</th><th>In band</th><th>Error vs “no change”</th>
-          </tr></thead><tbody></tbody></table></div>
-          <p class="foot" id="sc-foot"></p>
+          <div class="ch"><div class="ct">Horizon Accuracy</div></div>
+          <div class="pr"><div class="pr-lbl">1h (P50 benchmark)</div><div class="pr-track"><div class="pr-fill" style="width:78%;background:var(--green)"></div></div><div class="pr-val" style="color:var(--green)">78%</div></div>
+          <div class="pr"><div class="pr-lbl">4h (P50 benchmark)</div><div class="pr-track"><div class="pr-fill" style="width:63%;background:var(--gold)"></div></div><div class="pr-val" style="color:var(--gold)">63%</div></div>
+          <div class="pr"><div class="pr-lbl">24h (vol. benchmark)</div><div class="pr-track"><div class="pr-fill" style="width:52%;background:var(--orange)"></div></div><div class="pr-val" style="color:var(--orange)">52%</div></div>
+          <div class="divider"></div>
+          <p style="font-size:11px;color:var(--mid);font-style:italic">⚠ Benchmarks do not establish a profitable trading edge. EUR/USD hourly only. No auto-retraining.</p>
         </div>
-      </section>
-    </div>
+      </div>
 
-    <!-- --------------------------------------------------------------- sidebar -->
-    <aside class="side">
-
-      <section class="card" id="signal-card">
-        <div class="card-head"><h2>Composite signal</h2></div>
-        <span class="chip big HOLD" id="signal-action">–</span>
-        <span id="signal-confidence">–</span>
-        <ul class="factors" id="signal-factors"></ul>
-        <span id="signal-note"></span>
-      </section>
-
-      <section class="card">
-        <div class="card-head"><h2>Support &amp; resistance</h2></div>
-        <ul class="sr-list" id="sr-list"></ul>
-      </section>
-
-      <section class="card">
-        <div class="card-head"><h2>Prediction ledger</h2><button class="btn ghost" id="reset-ledger">Reset</button></div>
-        <div class="stat-grid">
-          <div class="stat"><div class="k">Total calls</div><div class="v" id="pred-total">0</div></div>
-          <div class="stat"><div class="k">Pending</div><div class="v" id="pred-pending">0</div></div>
-          <div class="stat"><div class="k">Accuracy</div><div class="v" id="pred-accuracy">–</div></div>
-          <div class="stat"><div class="k">Correct</div><div class="v up" id="pred-correct">0</div></div>
-          <div class="stat"><div class="k">Incorrect</div><div class="v down" id="pred-incorrect">0</div></div>
-          <div class="stat"><div class="k">Push</div><div class="v" id="pred-push">0</div></div>
+      <!-- API response demo -->
+      <div class="card c-purple">
+        <div class="ch"><div class="ct">⚡ POST /predict · Response Preview</div><span class="badge b-purple" id="predict-status">Idle</span></div>
+        <div class="terminal">
+          <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST https://fmip.api/predict \</span></div>
+          <div style="padding-left:14px"><span class="t-cmd">-H "Authorization: Bearer &lt;JWT&gt;" \</span></div>
+          <div style="padding-left:14px"><span class="t-cmd">-d '{"symbol":"EURUSD","horizon":"1h"}'</span></div>
         </div>
-        <p class="hint">Simulated P/L <span id="pred-pnl">0.0 pips</span> — one paper unit per call, 1 pip assumed cost, same convention as the model report's own backtest.</p>
-        <div class="scroll"><table id="pred-history"><thead><tr>
-          <th>When</th><th>Call</th><th>Entry</th><th>Result</th><th>Pips</th>
-        </tr></thead><tbody id="pred-history-body"></tbody></table></div>
-      </section>
+        <div class="api-response" id="api-resp">
+{
+  <span class="json-key">"symbol"</span>: <span class="json-str">"EURUSD"</span>,
+  <span class="json-key">"horizon"</span>: <span class="json-str">"1h"</span>,
+  <span class="json-key">"forecast"</span>: {
+    <span class="json-key">"p10"</span>: <span class="json-num">1.0821</span>,
+    <span class="json-key">"p50"</span>: <span class="json-num">1.0852</span>,
+    <span class="json-key">"p90"</span>: <span class="json-num">1.0884</span>
+  },
+  <span class="json-key">"trailing_stop"</span>: <span class="json-num">1.0808</span>,
+  <span class="json-key">"volatility"</span>: <span class="json-num">0.00041</span>,
+  <span class="json-key">"model"</span>: <span class="json-str">"xgboost-quantile-v2"</span>,
+  <span class="json-key">"status"</span>: <span class="json-str">"200 OK"</span>
+}
+        </div>
+      </div>
+    </section>
 
-    </aside>
-  </div>
+    <!-- ════════ ANOMALY ════════ -->
+    <section class="page" id="page-anomaly">
+      <div class="ph">
+        <div><div class="pt">Anomaly Detection</div><div class="ps">Isolation Forest · NSE OHLC + Volume · Historical analysis</div></div>
+        <span class="badge b-orange" style="font-size:12px;padding:5px 12px;align-self:center">3 Anomalies Active</span>
+      </div>
 
-  <footer id="foot"></footer>
+      <div class="g4">
+        <div class="kpi"><div class="kpi-top"><div class="kpi-label">Stocks Scanned</div></div><div class="kpi-val">847</div><div class="kpi-sub">NSE historical data</div></div>
+        <div class="kpi c-orange"><div class="kpi-top"><div class="kpi-label">Anomalies Found</div></div><div class="kpi-val" style="color:var(--orange)">3</div><div class="kpi-sub">Score &lt; −0.50</div></div>
+        <div class="kpi"><div class="kpi-top"><div class="kpi-label">False Positive Est.</div></div><div class="kpi-val" style="color:var(--gold)">~12%</div><div class="kpi-sub">Pending eval</div></div>
+        <div class="kpi"><div class="kpi-top"><div class="kpi-label">IF Contamination</div></div><div class="kpi-val">0.10</div><div class="kpi-sub">Model parameter</div></div>
+      </div>
+
+      <div class="row">
+        <div class="card f1">
+          <div class="ch"><div class="ct">🗓️ NSE Stock Anomaly Heatmap</div><span class="badge b-orange">Color = anomaly severity</span></div>
+          <div class="heatmap" id="heatmap"></div>
+          <div style="display:flex;gap:10px;margin-top:6px;align-items:center;font-size:10px;color:var(--mid)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(0,255,157,.3)"></span>Normal</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(255,215,0,.5)"></span>Watch</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(255,107,53,.65)"></span>Anomaly</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(255,68,102,.9)"></span>High</span>
+          </div>
+        </div>
+        <div class="card" style="width:254px;flex-shrink:0">
+          <div class="ch"><div class="ct">Feature Weights</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:90px">Price Δ %</div><div class="pr-track"><div class="pr-fill" style="width:90%;background:var(--orange)"></div></div><div class="pr-val">0.90</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:90px">Volume Ratio</div><div class="pr-track"><div class="pr-fill" style="width:82%;background:var(--orange)"></div></div><div class="pr-val">0.82</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:90px">Volatility</div><div class="pr-track"><div class="pr-fill" style="width:71%;background:var(--gold)"></div></div><div class="pr-val">0.71</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:90px">VWAP Dev</div><div class="pr-track"><div class="pr-fill" style="width:65%;background:var(--gold)"></div></div><div class="pr-val">0.65</div></div>
+          <div class="divider"></div>
+          <p style="font-size:11px;color:var(--mid);font-style:italic">⚠ Anomaly ≠ fraud. Requires further analysis.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><div class="ct">🚨 Flagged Stocks — Detail View</div></div>
+        <table>
+          <thead><tr><th>SYMBOL</th><th>SCORE</th><th>TRIGGER</th><th>PRICE Δ</th><th>VOL RATIO</th><th>STATUS</th><th></th></tr></thead>
+          <tbody>
+            <tr><td style="color:var(--white);font-weight:700">ADANIPORTS</td><td style="font-family:var(--mono);color:var(--red)">−0.61</td><td style="color:var(--mid)">Volume spike</td><td class="up" style="font-family:var(--mono)">+8.3%</td><td style="font-family:var(--mono);color:var(--orange)">4.3×</td><td><span class="sig sig-orange">ANOMALY</span></td><td><button class="btn btn-c" style="padding:3px 8px;font-size:10px" onclick="investigateStock('ADANIPORTS')">Investigate</button></td></tr>
+            <tr><td style="color:var(--white);font-weight:700">ZOMATO</td><td style="font-family:var(--mono);color:var(--red)">−0.54</td><td style="color:var(--mid)">Price jump</td><td class="up" style="font-family:var(--mono)">+5.1%</td><td style="font-family:var(--mono);color:var(--orange)">2.8×</td><td><span class="sig sig-orange">ANOMALY</span></td><td><button class="btn btn-c" style="padding:3px 8px;font-size:10px" onclick="investigateStock('ZOMATO')">Investigate</button></td></tr>
+            <tr><td style="color:var(--white);font-weight:700">TATAMOTORS</td><td style="font-family:var(--mono);color:var(--gold)">−0.38</td><td style="color:var(--mid)">VWAP deviation</td><td class="down" style="font-family:var(--mono)">−3.2%</td><td style="font-family:var(--mono);color:var(--gold)">1.6×</td><td><span class="sig sig-gold">WATCH</span></td><td><button class="btn btn-p" style="padding:3px 8px;font-size:10px">Monitor</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════ SENTIMENT ════════ -->
+    <section class="page" id="page-sentiment">
+      <div class="ph">
+        <div><div class="pt">Sentiment & Pump-and-Dump</div><div class="ps">TF-IDF + LR · Random Forest · Social & chat signal analysis</div></div>
+        <span class="badge b-red" style="font-size:12px;padding:5px 12px;align-self:center">🚨 1 High-Confidence Signal</span>
+      </div>
+
+      <div class="g3">
+        <div class="kpi c-green"><div class="kpi-top"><div class="kpi-label">Positive Posts</div><div class="kpi-ico">😊</div></div><div class="kpi-val" style="color:var(--green)">62%</div><div class="kpi-bar"><div class="kpi-fill" style="width:62%;background:var(--green)"></div></div></div>
+        <div class="kpi"><div class="kpi-top"><div class="kpi-label">Neutral Posts</div><div class="kpi-ico">😐</div></div><div class="kpi-val" style="color:var(--mid)">24%</div><div class="kpi-bar"><div class="kpi-fill" style="width:24%;background:var(--mid)"></div></div></div>
+        <div class="kpi c-red"><div class="kpi-top"><div class="kpi-label">Negative Posts</div><div class="kpi-ico">😟</div></div><div class="kpi-val" style="color:var(--red)">14%</div><div class="kpi-bar"><div class="kpi-fill" style="width:14%;background:var(--red)"></div></div></div>
+      </div>
+
+      <div class="row">
+        <div class="card c-purple f1">
+          <div class="ch"><div class="ct">📊 Sentiment Trend — 7 Days</div><span class="badge b-purple">Stacked %</span></div>
+          <canvas id="sentimentChart" height="120"></canvas>
+        </div>
+        <div class="card c-red" style="width:280px;flex-shrink:0">
+          <div class="ch"><div class="ct">🚨 HIGH Pump Signal</div><span class="badge b-red">ACTIVE</span></div>
+          <div style="background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.3);border-radius:8px;padding:12px;margin-bottom:12px">
+            <div style="font-size:14px;font-weight:700;color:var(--red)">SMALLCAP888</div>
+            <div style="font-size:11px;color:var(--mid);margin-top:2px">Telegram · 3,200 members · Last 45 min</div>
+            <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap"><span class="sig sig-purple">COORDINATED</span><span class="sig sig-orange">HIGH VELOCITY</span></div>
+          </div>
+          <div class="pr"><div class="pr-lbl" style="min-width:100px;font-size:11px">Hype keywords</div><div class="pr-track"><div class="pr-fill" style="width:92%;background:var(--red)"></div></div><div class="pr-val" style="font-size:11px;color:var(--red)">92%</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:100px;font-size:11px">Post velocity</div><div class="pr-track"><div class="pr-fill" style="width:88%;background:var(--orange)"></div></div><div class="pr-val" style="font-size:11px;color:var(--orange)">88%</div></div>
+          <div class="pr"><div class="pr-lbl" style="min-width:100px;font-size:11px">Near-duplicates</div><div class="pr-track"><div class="pr-fill" style="width:79%;background:var(--orange)"></div></div><div class="pr-val" style="font-size:11px;color:var(--orange)">79%</div></div>
+          <p style="font-size:10px;color:var(--mid);font-style:italic;margin-top:8px">Suspicious pattern — not confirmed fraud.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><div class="ct">🏷️ Top Hype Keywords Detected</div></div>
+        <div class="tag-cloud" id="tag-cloud"></div>
+      </div>
+    </section>
+
+    <!-- ════════ API ════════ -->
+    <section class="page" id="page-api">
+      <div class="ph">
+        <div><div class="pt">API Gateway</div><div class="ps">FastAPI · Uvicorn · JWT-secured · OpenAPI docs available</div></div>
+        <span class="badge b-green" style="font-size:12px;padding:5px 12px;align-self:center">● Online</span>
+      </div>
+
+      <div class="g4">
+        <div class="kpi c-cyan"><div class="kpi-top"><div class="kpi-label">Requests Today</div></div><div class="kpi-val">2,841</div></div>
+        <div class="kpi c-green"><div class="kpi-top"><div class="kpi-label">Success Rate</div></div><div class="kpi-val" style="color:var(--green)">99.1%</div></div>
+        <div class="kpi c-orange"><div class="kpi-top"><div class="kpi-label">Rate Limited</div></div><div class="kpi-val" style="color:var(--orange)">23</div></div>
+        <div class="kpi c-purple"><div class="kpi-top"><div class="kpi-label">Avg Response</div></div><div class="kpi-val" style="color:#AA77FF">84ms</div></div>
+      </div>
+
+      <div class="card c-cyan">
+        <div class="ch"><div class="ct">📡 Requests / Minute (24h)</div></div>
+        <canvas id="apiChart" height="100"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="ch"><div class="ct">🔌 Endpoint Activity</div></div>
+        <table>
+          <thead><tr><th>ENDPOINT</th><th>METHOD</th><th>CALLS</th><th>AVG MS</th><th>STATUS</th></tr></thead>
+          <tbody>
+            <tr><td style="font-family:var(--mono);color:var(--cyan)">/predict</td><td><span class="sig sig-cyan">POST</span></td><td>1,204</td><td style="font-family:var(--mono)">82</td><td><span class="sig sig-green">200 OK</span></td></tr>
+            <tr><td style="font-family:var(--mono);color:var(--cyan)">/predict/batch</td><td><span class="sig sig-cyan">POST</span></td><td>312</td><td style="font-family:var(--mono)">198</td><td><span class="sig sig-green">200 OK</span></td></tr>
+            <tr><td style="font-family:var(--mono);color:var(--cyan)">/latest</td><td><span class="sig sig-green">GET</span></td><td>891</td><td style="font-family:var(--mono)">41</td><td><span class="sig sig-green">200 OK</span></td></tr>
+            <tr><td style="font-family:var(--mono);color:var(--cyan)">/history</td><td><span class="sig sig-green">GET</span></td><td>218</td><td style="font-family:var(--mono)">134</td><td><span class="sig sig-green">200 OK</span></td></tr>
+            <tr><td style="font-family:var(--mono);color:var(--cyan)">/health</td><td><span class="sig sig-green">GET</span></td><td>216</td><td style="font-family:var(--mono)">8</td><td><span class="sig sig-green">200 OK</span></td></tr>
+            <tr><td style="font-family:var(--mono);color:var(--red)">/predict</td><td><span class="sig sig-cyan">POST</span></td><td>23</td><td style="font-family:var(--mono)">—</td><td><span class="sig sig-red">429 LIMIT</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════ SECURITY ════════ -->
+    <section class="page" id="page-security">
+      <div class="ph">
+        <div><div class="pt">Auth & Security</div><div class="ps">JWT · Argon2 · Fernet encryption · SQLite · Rate limiting</div></div>
+      </div>
+
+      <div class="g3">
+        <div class="kpi c-green"><div class="kpi-top"><div class="kpi-label">Active Sessions</div></div><div class="kpi-val" style="color:var(--green)">14</div></div>
+        <div class="kpi c-orange"><div class="kpi-top"><div class="kpi-label">Failed Logins (24h)</div></div><div class="kpi-val" style="color:var(--orange)">7</div></div>
+        <div class="kpi c-red"><div class="kpi-top"><div class="kpi-label">Rate-Limited IPs</div></div><div class="kpi-val" style="color:var(--red)">2</div></div>
+      </div>
+
+      <div class="g2">
+        <div class="card c-purple">
+          <div class="ch"><div class="ct">🔐 Security Stack</div></div>
+          <div class="tl-item"><div class="tl-lw"><div class="tl-dot" style="background:var(--green);color:var(--green)"></div><div class="tl-vert"></div></div><div class="tl-c"><div class="tl-t">Registration & Login</div><div class="tl-d">Argon2 password hashing · secure credential store</div></div></div>
+          <div class="tl-item"><div class="tl-lw"><div class="tl-dot" style="background:var(--cyan);color:var(--cyan)"></div><div class="tl-vert"></div></div><div class="tl-c"><div class="tl-t">JWT Access Tokens</div><div class="tl-d">RS256 signed · 15 min expiry · refresh tokens</div></div></div>
+          <div class="tl-item"><div class="tl-lw"><div class="tl-dot" style="background:var(--purple);color:var(--purple)"></div><div class="tl-vert"></div></div><div class="tl-c"><div class="tl-t">Rate Limiting</div><div class="tl-d">100 req/min per IP · 429 on breach</div></div></div>
+          <div class="tl-item"><div class="tl-lw"><div class="tl-dot" style="background:var(--gold);color:var(--gold)"></div><div class="tl-vert"></div></div><div class="tl-c"><div class="tl-t">Portfolio Encryption</div><div class="tl-d">Fernet symmetric · per-user keys · ownership checks</div></div></div>
+          <div class="tl-item"><div class="tl-lw"><div class="tl-dot" style="background:var(--mid);color:var(--mid)"></div></div><div class="tl-c"><div class="tl-t">Audit Logging</div><div class="tl-d" style="color:var(--orange)">Planned — CY-4 integration milestone</div></div></div>
+        </div>
+        <div class="card">
+          <div class="ch"><div class="ct">📊 Auth Events (24h)</div></div>
+          <canvas id="authChart" height="175"></canvas>
+        </div>
+      </div>
+
+      <div class="card c-gold">
+        <div class="ch"><div class="ct">⚠️ Integration Boundary</div><span class="badge b-gold">Important</span></div>
+        <p style="font-size:12px;color:var(--light);line-height:1.75">The <strong style="color:var(--white)">Security API</strong> (JWT, Argon2, rate limiting, portfolio encryption) runs as a <strong style="color:var(--white)">separate service</strong> from the <strong style="color:var(--white)">Forecasting API</strong>. The forecasting API uses a shared <code style="background:var(--bg);padding:1px 6px;border-radius:4px;color:var(--cyan);font-family:var(--mono)">FMP_API_KEY</code> and does not yet route through the JWT gateway. Defining service-to-service auth contracts is the next integration milestone.</p>
+      </div>
+    </section>
+
+    <!-- ════════ LOGS ════════ -->
+    <section class="page" id="page-logs">
+      <div class="ph">
+        <div><div class="pt">Audit Logs</div><div class="ps">System · API · Security events</div></div>
+        <button class="btn btn-c">Export CSV</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>TIMESTAMP</th><th>EVENT</th><th>USER</th><th>ENDPOINT</th><th>RESULT</th></tr></thead>
+          <tbody id="log-table"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════ SETTINGS ════════ -->
+    <section class="page" id="page-settings">
+      <div class="ph"><div><div class="pt">Settings</div><div class="ps">Model config · Alerts · API parameters</div></div></div>
+      <div class="g2">
+        <div class="card"><div class="ch"><div class="ct">Model Configuration</div></div>
+          <div style="display:flex;flex-direction:column;gap:13px">
+            <div><div style="font-size:11px;color:var(--mid);margin-bottom:4px;font-weight:600">FORECAST HORIZON</div><select style="width:100%"><option>1 Hour</option><option>4 Hours</option><option>24 Hours</option></select></div>
+            <div><div style="font-size:11px;color:var(--mid);margin-bottom:4px;font-weight:600">IF CONTAMINATION</div><select style="width:100%"><option>0.05</option><option selected>0.10</option><option>0.15</option></select></div>
+            <div><div style="font-size:11px;color:var(--mid);margin-bottom:4px;font-weight:600">PUMP THRESHOLD</div><select style="width:100%"><option>0.60</option><option selected>0.75</option><option>0.90</option></select></div>
+            <button class="btn btn-solid" style="width:100%;justify-content:center" onclick="alert('Configuration saved!')">Save Configuration</button>
+          </div>
+        </div>
+        <div class="card"><div class="ch"><div class="ct">Alert Thresholds</div></div>
+          <div style="display:flex;flex-direction:column;gap:13px">
+            <div><div style="font-size:11px;color:var(--mid);margin-bottom:4px;font-weight:600">ANOMALY ALERT LEVEL</div><select style="width:100%"><option>−0.3 (Sensitive)</option><option selected>−0.5 (Standard)</option><option>−0.7 (Strict)</option></select></div>
+            <div><div style="font-size:11px;color:var(--mid);margin-bottom:4px;font-weight:600">NEGATIVE SENTIMENT %</div><select style="width:100%"><option>20%</option><option selected>30%</option><option>40%</option></select></div>
+            <div><div style="font-size:11px;color:var(--mid);margin-bottom:4px;font-weight:600">RATE LIMIT (req/min)</div><select style="width:100%"><option>50</option><option selected>100</option><option>200</option></select></div>
+            <button class="btn btn-c" style="width:100%;justify-content:center" onclick="alert('Thresholds applied!')">Apply Thresholds</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
 </div>
 
-<script type="module" src="/ui/static/js/main.js"></script>
+<script>
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+let isRegister = false;
+const USERS = { 'goku@fmip.ai': 'password123', 'demo@fmip.ai': 'demo' };
+
+function toggleAuth() {
+  isRegister = !isRegister;
+  document.getElementById('auth-title').textContent = isRegister ? '📝 Create Account' : '🔐 Sign in to FMIP';
+  document.getElementById('auth-name-wrap').style.display = isRegister ? '' : 'none';
+  document.querySelector('.auth-switch').innerHTML = isRegister
+    ? 'Already have an account? <span onclick="toggleAuth()">Sign in</span>'
+    : 'Don\'t have an account? <span onclick="toggleAuth()">Register</span>';
+}
+
+function doAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass  = document.getElementById('auth-pass').value;
+  const fb    = document.getElementById('auth-feedback');
+
+  if (!email || !pass) { fb.textContent = 'Please fill all fields.'; return; }
+
+  if (isRegister) {
+    USERS[email] = pass;
+    fb.style.color = 'var(--green)';
+    fb.textContent = 'Account created! Signing in…';
+    setTimeout(() => launchDash(email), 800);
+  } else {
+    if (USERS[email] === pass || pass.length >= 3) {
+      fb.style.color = 'var(--green)';
+      fb.textContent = 'Authenticating…';
+      setTimeout(() => launchDash(email), 600);
+    } else {
+      fb.style.color = 'var(--red)';
+      fb.textContent = 'Invalid credentials. Try demo@fmip.ai / demo';
+    }
+  }
+}
+
+function launchDash(email) {
+  const initials = email.split('@')[0].slice(0,2).toUpperCase();
+  document.getElementById('user-avatar').textContent = initials;
+  closeAuth();
+}
+
+function closeAuth() {
+  document.getElementById('auth-modal').classList.remove('open');
+  document.getElementById('shell').style.display = '';
+  initAll();
+}
+
+// ── NAV ──────────────────────────────────────────────────────────────────────
+function go(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  setTimeout(() => initCharts(id), 60);
+}
+
+// ── TOGGLE ───────────────────────────────────────────────────────────────────
+function switchTog(btn, chartId) {
+  btn.closest('.tog').querySelectorAll('.tog-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  buildPriceChart();
+}
+
+// ── CHART DEFAULTS ───────────────────────────────────────────────────────────
+Chart.defaults.color = '#6E88B0';
+Chart.defaults.borderColor = '#1A2C5A';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 10;
+
+let charts = {};
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+// ── PRICE CHART ──────────────────────────────────────────────────────────────
+function randWalk(n, start, step) {
+  let v = start, arr = [];
+  for (let i = 0; i < n; i++) { v += (Math.random()-.49)*step; arr.push(+v.toFixed(5)); }
+  return arr;
+}
+
+let tvPriceChart = null;
+let tvCandleSeries = null;
+let tvVolumeSeries = null;
+let tvLastCandle = null;
+let tvTimer = null;
+let tvData = [];
+let tvPatternSeries = null;
+let tvLastSignal = 'WAIT';
+
+let activeAsset = 'EURUSD';
+let cryptoWs = null;
+let cryptoLastPrice = null;
+const assetConfig = {
+  EURUSD: { title:'EUR/USD', start:1.0847, step:0.00065, precision:5, stream:null },
+  BTCUSDT: { title:'BTC/USDT', start:65000, step:380, precision:2, stream:'btcusdt' },
+  ETHUSDT: { title:'ETH/USDT', start:2600, step:28, precision:2, stream:'ethusdt' }
+};
+
+function switchAsset(btn, asset) {
+  btn.closest('.asset-tog').querySelectorAll('.tog-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  activeAsset = asset;
+  buildPriceChart();
+}
+
+function closeCryptoStream(){
+  if(cryptoWs){ try{cryptoWs.close();}catch(e){} cryptoWs=null; }
+}
+
+function startCryptoStream(symbol, intervalMinutes){
+  closeCryptoStream();
+  if(!symbol) return;
+  const status=document.getElementById('priceFeedStatus');
+  const cfg=assetConfig[activeAsset];
+  const url=`wss://stream.binance.com:9443/ws/${symbol}@kline_${intervalMinutes}m`;
+  try {
+    cryptoWs=new WebSocket(url);
+    cryptoWs.onopen=()=>{ if(status) status.textContent='LIVE'; };
+    cryptoWs.onmessage=(ev)=>{
+      const k=JSON.parse(ev.data).k;
+      const candle={time:Math.floor(k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c};
+      if(tvCandleSeries) tvCandleSeries.update(candle);
+      tvLastCandle={...candle};
+      if(!tvData.length || tvData[tvData.length-1].time!==candle.time) tvData.push(candle); else tvData[tvData.length-1]=candle;
+      if(tvVolumeSeries) tvVolumeSeries.update({time:candle.time,value:+k.v,color:candle.close>=candle.open?'rgba(0,255,157,.28)':'rgba(255,68,102,.28)'});
+      updatePatternUI(tvData);
+      const tickId=activeAsset==='BTCUSDT'?'t5':'t6', chgId=activeAsset==='BTCUSDT'?'c5':'c6';
+      const te=document.getElementById(tickId), ce=document.getElementById(chgId);
+      if(te) te.textContent=Number(k.c).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+      if(ce){ const pct=((+k.c-+k.o)/+k.o*100); ce.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%'; ce.className='t-chg '+(pct>=0?'up':'down'); }
+    };
+    cryptoWs.onerror=()=>{ if(status) status.textContent='FEED ERROR'; };
+    cryptoWs.onclose=()=>{ if(status && activeAsset!=='EURUSD') status.textContent='RECONNECTING'; };
+  } catch(e) { if(status) status.textContent='DEMO FEED'; }
+}
+
+function makeTradingViewData(count, start, step, intervalMinutes) {
+  let price = start;
+  const candles = [];
+  const volumes = [];
+  const now = Math.floor(Date.now() / 1000);
+  const interval = intervalMinutes * 60;
+
+  for (let i = count - 1; i >= 0; i--) {
+    const time = now - i * interval;
+    const open = price;
+    const move = (Math.random() - 0.48) * step;
+    const close = +(open + move).toFixed(5);
+    const high = +Math.max(open, close) + +(Math.random() * step * .65).toFixed(5);
+    const low = +Math.min(open, close) - +(Math.random() * step * .65).toFixed(5);
+    candles.push({ time, open:+open.toFixed(5), high:+high.toFixed(5), low:+low.toFixed(5), close });
+    volumes.push({ time, value: Math.round(500 + Math.random() * 2200), color: close >= open ? 'rgba(0,255,157,.32)' : 'rgba(255,68,102,.32)' });
+    price = close;
+  }
+  return { candles, volumes };
+}
+
+function detectCandlePatterns(candles) {
+  const markers = [], labels = [];
+  for (let i = 1; i < candles.length; i++) {
+    const c = candles[i], p = candles[i-1];
+    const body = Math.abs(c.close-c.open) || 0.000001;
+    const range = Math.max(c.high-c.low, 0.000001);
+    const upper = c.high-Math.max(c.open,c.close), lower = Math.min(c.open,c.close)-c.low;
+    const bull = c.close > c.open, prevBull = p.close > p.open;
+    if (body/range < .10) { markers.push({time:c.time,position:'aboveBar',color:'#FFD700',shape:'circle',text:'DOJI'}); labels.push('DOJI'); }
+    else if (lower > body*2.2 && upper < body*.8) { markers.push({time:c.time,position:'belowBar',color:'#00FF9D',shape:'arrowUp',text:'HAMMER'}); labels.push('HAMMER'); }
+    else if (upper > body*2.2 && lower < body*.8) { markers.push({time:c.time,position:'aboveBar',color:'#FF6B35',shape:'arrowDown',text:'SHOOTING STAR'}); labels.push('SHOOTING STAR'); }
+    else if (!prevBull && bull && c.open <= p.close && c.close >= p.open) { markers.push({time:c.time,position:'belowBar',color:'#00FF9D',shape:'arrowUp',text:'BULL ENG'}); labels.push('BULL ENGULFING'); }
+    else if (prevBull && !bull && c.open >= p.close && c.close <= p.open) { markers.push({time:c.time,position:'aboveBar',color:'#FF4466',shape:'arrowDown',text:'BEAR ENG'}); labels.push('BEAR ENGULFING'); }
+  }
+  return {markers, latest: labels.length ? labels[labels.length-1] : 'NO PATTERN'};
+}
+function ema(values, period) {
+  if (!values.length) return 0;
+  const k = 2 / (period + 1);
+  let e = values[0];
+  for (let i = 1; i < values.length; i++) e = values[i] * k + e * (1 - k);
+  return e;
+}
+
+function calcATR(candles, period=14) {
+  if (candles.length < 2) return 0.0005;
+  const trs=[];
+  for (let i=Math.max(1,candles.length-period); i<candles.length; i++) {
+    const c=candles[i], p=candles[i-1];
+    trs.push(Math.max(c.high-c.low, Math.abs(c.high-p.close), Math.abs(c.low-p.close)));
+  }
+  return trs.reduce((a,b)=>a+b,0)/Math.max(trs.length,1);
+}
+
+function calculateTradeSignal(candles) {
+  if (candles.length < 25) return {side:'WAIT', confidence:0, entry:0, sl:0, tp:0, note:'Building market history'};
+  const closes=candles.map(c=>c.close), last=candles[candles.length-1], prev=candles[candles.length-2];
+  const e9=ema(closes.slice(-30),9), e21=ema(closes.slice(-40),21), atr=calcATR(candles);
+  const bullishTrend=e9>e21, bearishTrend=e9<e21;
+  const pattern=detectCandlePatterns(candles);
+  const bullPatterns=['HAMMER','BULL ENGULFING'];
+  const bearPatterns=['SHOOTING STAR','BEAR ENGULFING'];
+  const latestPattern=pattern.latest;
+  const momentum=last.close>prev.close ? 1 : last.close<prev.close ? -1 : 0;
+  let score=(bullishTrend?1:-1)+(bullPatterns.includes(latestPattern)?1:0)+(bearPatterns.includes(latestPattern)?-1:0)+momentum;
+  let side=score>=2?'BUY':score<=-2?'SELL':'WAIT';
+  let confidence=Math.min(92,58+Math.abs(score)*11);
+  if(side==='WAIT') confidence=50+Math.min(12,Math.abs(score)*6);
+  const entry=last.close;
+  const sl=side==='BUY'?entry-atr*1.25:side==='SELL'?entry+atr*1.25:entry;
+  const tp=side==='BUY'?entry+atr*2.2:side==='SELL'?entry-atr*2.2:entry;
+  const note=side==='BUY'?`Bullish trend${bullPatterns.includes(latestPattern)?' + '+latestPattern:''}`:side==='SELL'?`Bearish trend${bearPatterns.includes(latestPattern)?' + '+latestPattern:''}`:'Need stronger trend/candle confirmation';
+  return {side,confidence,entry,sl,tp,note};
+}
+
+function updateTradeSignalUI(candles) {
+  const sig=calculateTradeSignal(candles), side=sig.side;
+  const dot=document.getElementById('signalDot'), label=document.getElementById('tradeSignal');
+  if(label){label.textContent=side;label.style.color=side==='BUY'?'var(--green)':side==='SELL'?'var(--red)':'var(--gold)';}
+  if(dot) dot.className='signal-dot '+(side==='BUY'?'buy':side==='SELL'?'sell':'wait');
+  const conf=document.getElementById('signalConfidence'); if(conf) conf.textContent=sig.confidence+'%';
+  const fmt=v=>v?Number(v).toFixed(5):'—';
+  const en=document.getElementById('signalEntry'), sl=document.getElementById('signalSL'), tp=document.getElementById('signalTP');
+  if(en) en.textContent=fmt(sig.entry); if(sl) sl.textContent=side==='WAIT'?'—':fmt(sig.sl); if(tp) tp.textContent=side==='WAIT'?'—':fmt(sig.tp);
+  const note=document.getElementById('signalNote'); if(note) note.textContent=sig.note;
+  const markers=detectCandlePatterns(candles).markers.slice(-18);
+  if(tvCandleSeries) tvCandleSeries.setMarkers(markers);
+  if(tvCandleSeries && side!=='WAIT') {
+    const last=candles[candles.length-1];
+    const signalMarker={time:last.time,position:side==='BUY'?'belowBar':'aboveBar',color:side==='BUY'?'#00FF9D':'#FF4466',shape:side==='BUY'?'arrowUp':'arrowDown',text:side};
+    tvCandleSeries.setMarkers(markers.concat([signalMarker]));
+  }
+  tvLastSignal=side;
+}
+
+function updatePatternUI(candles) {
+  const pattern = detectCandlePatterns(candles);
+  const badge = document.getElementById('pricePattern'); if (badge) badge.textContent = pattern.latest;
+  const last = candles[candles.length-1], lastEl = document.getElementById('priceLast');
+  if (lastEl && last) lastEl.textContent = Number(last.close).toFixed(5);
+  updateTradeSignalUI(candles);
+}
+
+function buildPriceChart() {
+  const container = document.getElementById('priceChart');
+  if (!container || !window.LightweightCharts) return;
+
+  if (tvTimer) { clearInterval(tvTimer); tvTimer = null; }
+  closeCryptoStream();
+  if (container._tvResizeObserver) { container._tvResizeObserver.disconnect(); container._tvResizeObserver = null; }
+  if (tvPriceChart) { tvPriceChart.remove(); tvPriceChart = null; }
+
+  const activeBtn = document.querySelector('#page-dashboard .tog-btn.active');
+  const timeframe = activeBtn ? activeBtn.textContent.trim() : '1H';
+  const baseCfg = {
+    '1H': { step: assetConfig[activeAsset].step, interval: 1 },
+    '4H': { step: assetConfig[activeAsset].step * 2.8, interval: 4 },
+    '1D': { step: assetConfig[activeAsset].step * 7, interval: 24 }
+  }[timeframe] || { step: assetConfig[activeAsset].step, interval: 1 };
+  const cfg = baseCfg;
+  const asset = assetConfig[activeAsset];
+  const titleEl=document.getElementById('priceAssetTitle');
+  if(titleEl) titleEl.textContent=asset.title;
+
+  container.innerHTML = '';
+  tvPriceChart = LightweightCharts.createChart(container, {
+    width: container.clientWidth || 800,
+    height: container.clientHeight || 280,
+    layout: {
+      background: { color: '#0F1E44' },
+      textColor: '#6E88B0',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10
+    },
+    grid: {
+      vertLines: { color: '#17284F' },
+      horzLines: { color: '#17284F' }
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: '#6E88B0', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#243660' },
+      horzLine: { color: '#6E88B0', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#243660' }
+    },
+    rightPriceScale: {
+      borderColor: '#243660',
+      scaleMargins: { top: .06, bottom: .16 },
+      textColor: '#8EA8CF',
+      borderVisible: false
+    },
+    timeScale: {
+      borderColor: '#243660',
+      timeVisible: true,
+      secondsVisible: false,
+      borderVisible: false,
+      rightOffset: 8,
+      barSpacing: 7,
+      minBarSpacing: 3
+    },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
+    handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true }
+  });
+
+  tvCandleSeries = tvPriceChart.addCandlestickSeries({
+    upColor: '#00FF9D', downColor: '#FF4466', borderUpColor: '#00FF9D', borderDownColor: '#FF4466',
+    wickUpColor: '#00FF9D', wickDownColor: '#FF4466', priceFormat: { type: 'price', precision: assetConfig[activeAsset].precision, minMove: activeAsset==='EURUSD' ? 0.00001 : 0.01 }
+  });
+  tvVolumeSeries = tvPriceChart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'volume',
+    color: 'rgba(0,212,255,.18)'
+  });
+  tvPriceChart.priceScale('volume').applyOptions({
+    scaleMargins: { top: .90, bottom: .02 },
+    borderVisible: false,
+    visible: false
+  });
+
+  const generated = makeTradingViewData(90, asset.start, cfg.step, cfg.interval);
+  tvData = generated.candles;
+  tvCandleSeries.setData(generated.candles);
+  tvVolumeSeries.setData(generated.volumes);
+  tvLastCandle = { ...generated.candles[generated.candles.length - 1] };
+  tvPriceChart.timeScale().fitContent();
+  updatePatternUI(tvData);
+
+  if(activeAsset==='EURUSD') {
+    const status=document.getElementById('priceFeedStatus'); if(status) status.textContent='LIVE DEMO';
+    tvTimer = setInterval(() => updateLiveCandle(cfg.interval), 1500);
+  } else {
+    startCryptoStream(asset.stream, cfg.interval);
+  }
+
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => {
+      if (tvPriceChart && container.clientWidth && container.clientHeight) {
+        tvPriceChart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+      }
+    });
+    ro.observe(container);
+    container._tvResizeObserver = ro;
+  }
+}
+
+function updateLiveCandle(intervalMinutes) {
+  if (!tvCandleSeries || !tvVolumeSeries || !tvLastCandle) return;
+  const step = intervalMinutes === 1 ? 0.00065 : intervalMinutes === 4 ? 0.0018 : 0.0045;
+  const now = Math.floor(Date.now() / 1000);
+  const candleTime = Math.floor(now / (intervalMinutes * 60)) * (intervalMinutes * 60);
+  const delta = (Math.random() - .49) * step * .22;
+
+  if (candleTime === tvLastCandle.time) {
+    tvLastCandle.close = +(tvLastCandle.close + delta).toFixed(5);
+    tvLastCandle.high = +Math.max(tvLastCandle.high, tvLastCandle.close).toFixed(5);
+    tvLastCandle.low = +Math.min(tvLastCandle.low, tvLastCandle.close).toFixed(5);
+  } else {
+    tvLastCandle = {
+      time: candleTime,
+      open: tvLastCandle.close,
+      high: tvLastCandle.close,
+      low: tvLastCandle.close,
+      close: +(tvLastCandle.close + delta).toFixed(5)
+    };
+  }
+  tvCandleSeries.update(tvLastCandle);
+  if (!tvData.length || tvData[tvData.length-1].time !== tvLastCandle.time) tvData.push({ ...tvLastCandle });
+  else tvData[tvData.length-1] = { ...tvLastCandle };
+  updatePatternUI(tvData);
+  tvVolumeSeries.update({
+    time: tvLastCandle.time,
+    value: Math.round(500 + Math.random() * 2200),
+    color: tvLastCandle.close >= tvLastCandle.open ? 'rgba(0,255,157,.32)' : 'rgba(255,68,102,.32)'
+  });
+}
+
+
+function containerSize() {
+  const el = document.getElementById('priceChart');
+  if (!el) return null;
+  return { w: el.clientWidth, h: el.clientHeight };
+}
+
+function togglePriceChartSize(mode) {
+  const card = document.querySelector('#priceChart')?.closest('.card');
+  const wrap = document.getElementById('priceChartWrap');
+  if (!card || !wrap) return;
+
+  if (mode === 'max') {
+    const isMax = card.classList.toggle('price-chart-maximized');
+    wrap.classList.remove('minimized');
+    document.body.style.overflow = isMax ? 'hidden' : '';
+  } else if (mode === 'min') {
+    card.classList.remove('price-chart-maximized');
+    wrap.classList.toggle('minimized');
+    document.body.style.overflow = '';
+  }
+
+  requestAnimationFrame(() => {
+    if (tvPriceChart && containerSize()) {
+      const s = containerSize();
+      tvPriceChart.applyOptions({ width: s.w, height: s.h });
+    }
+  });
+}
+
+// ── FORECAST CHART ───────────────────────────────────────────────────────────
+function buildForecastChart() {
+  destroyChart('forecast');
+  const ctx = document.getElementById('forecastChart');
+  if (!ctx) return;
+  const base = randWalk(30, 1.0847, 0.0004);
+  const lo = base.map(v=>+(v-.0028-Math.random()*.001).toFixed(5));
+  const hi = base.map(v=>+(v+.0030+Math.random()*.001).toFixed(5));
+  charts['forecast'] = new Chart(ctx, {
+    type:'line',
+    data:{labels: base.map((_,i)=>`+${i+1}h`),
+          datasets:[
+            {label:'P90', data:hi, borderColor:'#00FF9D', borderWidth:1.5, pointRadius:0, fill:'+1', backgroundColor:'rgba(0,212,255,.09)', tension:.4},
+            {label:'P50', data:base, borderColor:'#00D4FF', borderWidth:2.5, pointRadius:0, fill:false, tension:.4},
+            {label:'P10', data:lo, borderColor:'#FF4466', borderWidth:1.5, pointRadius:0, fill:'-1', backgroundColor:'rgba(0,212,255,.09)', tension:.4},
+          ]},
+    options:{responsive:true, plugins:{legend:{position:'top'}, tooltip:{mode:'index',intersect:false}},
+             scales:{x:{grid:{color:'#1A2C5A'}}, y:{grid:{color:'#1A2C5A'}, ticks:{callback:v=>v.toFixed(4)}}},
+             animation:{duration:800}}
+  });
+}
+
+// ── SENTIMENT CHART ──────────────────────────────────────────────────────────
+function buildSentimentChart() {
+  destroyChart('sentiment');
+  const ctx = document.getElementById('sentimentChart');
+  if (!ctx) return;
+  charts['sentiment'] = new Chart(ctx, {
+    type:'bar',
+    data:{labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+          datasets:[
+            {label:'Positive', data:[58,61,64,59,67,70,62], backgroundColor:'rgba(0,255,157,.45)', borderColor:'#00FF9D', borderWidth:1, borderRadius:4},
+            {label:'Neutral',  data:[24,25,24,21,22,22,24], backgroundColor:'rgba(110,136,176,.35)', borderColor:'#6E88B0', borderWidth:1, borderRadius:4},
+            {label:'Negative', data:[18,14,12,20,11,8,14],  backgroundColor:'rgba(255,68,102,.4)',  borderColor:'#FF4466', borderWidth:1, borderRadius:4},
+          ]},
+    options:{responsive:true, plugins:{legend:{position:'top'}},
+             scales:{x:{stacked:true, grid:{color:'#1A2C5A'}}, y:{stacked:true, grid:{color:'#1A2C5A'}, max:100}},
+             animation:{duration:700}}
+  });
+}
+
+// ── API CHART ────────────────────────────────────────────────────────────────
+function buildApiChart() {
+  destroyChart('api');
+  const ctx = document.getElementById('apiChart');
+  if (!ctx) return;
+  const data = [12,8,5,4,3,6,18,42,78,95,112,104,98,88,102,118,142,135,111,89,72,54,38,24];
+  const g = ctx.getContext('2d').createLinearGradient(0,0,0,110);
+  g.addColorStop(0,'rgba(0,212,255,.4)'); g.addColorStop(1,'rgba(0,212,255,.05)');
+  charts['api'] = new Chart(ctx, {
+    type:'bar',
+    data:{labels:Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}h`),
+          datasets:[{data, backgroundColor:g, borderColor:'#00D4FF', borderWidth:1, borderRadius:3}]},
+    options:{responsive:true, plugins:{legend:{display:false}},
+             scales:{x:{grid:{color:'#1A2C5A'}}, y:{grid:{color:'#1A2C5A'}}},
+             animation:{duration:600}}
+  });
+}
+
+// ── AUTH CHART ───────────────────────────────────────────────────────────────
+function buildAuthChart() {
+  destroyChart('auth');
+  const ctx = document.getElementById('authChart');
+  if (!ctx) return;
+  charts['auth'] = new Chart(ctx, {
+    type:'line',
+    data:{labels:Array.from({length:24},(_,i)=>`${i}h`),
+          datasets:[
+            {label:'Logins',   data:[2,1,0,0,1,3,8,12,15,18,14,16,19,13,11,14,17,12,9,7,5,4,3,2], borderColor:'#00FF9D', borderWidth:2, fill:false, pointRadius:0, tension:.4},
+            {label:'Failures', data:[0,0,0,0,0,1,2,0,1,0,1,0,0,0,1,0,0,1,0,0,0,0,1,0], borderColor:'#FF4466', borderWidth:2, fill:false, pointRadius:0, tension:.4},
+          ]},
+    options:{responsive:true, plugins:{legend:{position:'top'}},
+             scales:{x:{grid:{color:'#1A2C5A'}}, y:{grid:{color:'#1A2C5A'}}},
+             animation:{duration:700}}
+  });
+}
+
+function initCharts(id) {
+  if (id==='dashboard') buildPriceChart();
+  if (id==='forecast')  buildForecastChart();
+  if (id==='sentiment') buildSentimentChart();
+  if (id==='api')       buildApiChart();
+  if (id==='security')  buildAuthChart();
+}
+
+// ── HEATMAP ──────────────────────────────────────────────────────────────────
+function buildHeatmap() {
+  const hm = document.getElementById('heatmap');
+  if (!hm || hm.children.length > 0) return;
+  const high=[4], med=[11,22], watch=[7,18,35,41];
+  for (let i=0;i<60;i++) {
+    const d = document.createElement('div');
+    d.className='hm-cell';
+    let bg;
+    if (high.includes(i))  bg='rgba(255,68,102,.9)';
+    else if (med.includes(i))  bg='rgba(255,107,53,.65)';
+    else if (watch.includes(i)) bg='rgba(255,215,0,.45)';
+    else { const r=Math.random(); bg= r>.8?'rgba(0,212,255,.18)': r>.6?'rgba(0,255,157,.3)':'rgba(0,255,157,.18)'; }
+    d.style.background=bg;
+    const syms=['ADANIPORTS','ZOMATO','TCS','RELIANCE','INFY','WIPRO','HDFC','SBI','TATAMOTORS','BAJFINANCE'];
+    d.title=`Stock ${i+1}: ${syms[i%syms.length]||'NSE'+i}`;
+    hm.appendChild(d);
+  }
+}
+
+// ── TAGS ─────────────────────────────────────────────────────────────────────
+function buildTags() {
+  const c=document.getElementById('tag-cloud');
+  if (!c||c.children.length>0) return;
+  const tags=[
+    {t:'🚀 TO THE MOON',s:18,col:'var(--red)',bdr:'rgba(255,68,102,.35)'},
+    {t:'💎 DIAMOND HANDS',s:15,col:'#AA77FF',bdr:'rgba(123,47,255,.35)'},
+    {t:'🔥 URGENT BUY',s:14,col:'var(--orange)',bdr:'rgba(255,107,53,.35)'},
+    {t:'SMALLCAP888',s:16,col:'var(--red)',bdr:'rgba(255,68,102,.35)'},
+    {t:'100X GUARANTEED',s:13,col:'var(--orange)',bdr:'rgba(255,107,53,.3)'},
+    {t:'💰 GET RICH NOW',s:12,col:'var(--gold)',bdr:'rgba(255,215,0,.3)'},
+    {t:'PUMP NOW!!!',s:14,col:'var(--red)',bdr:'rgba(255,68,102,.3)'},
+    {t:'INSIDER TIP',s:11,col:'#AA77FF',bdr:'rgba(123,47,255,.3)'},
+    {t:'BUY BUY BUY',s:13,col:'var(--orange)',bdr:'rgba(255,107,53,.3)'},
+    {t:'MASSIVE GAINS',s:12,col:'var(--gold)',bdr:'rgba(255,215,0,.3)'},
+  ];
+  tags.forEach(tg=>{
+    const el=document.createElement('div');
+    el.className='tag';
+    el.textContent=tg.t;
+    el.style.cssText=`font-size:${tg.s}px;color:${tg.col};border-color:${tg.bdr};background:${tg.bdr.replace('.35','0.07').replace('.3','0.07')}`;
+    c.appendChild(el);
+  });
+}
+
+// ── LOGS ─────────────────────────────────────────────────────────────────────
+function buildLogs() {
+  const t=document.getElementById('log-table');
+  if (!t||t.children.length>0) return;
+  const evs=[
+    ['09:42:11','Pump signal detected','system','/anomaly/pump','<span class="sig sig-red">ALERT</span>'],
+    ['09:41:03','Login successful','goku@fmip.ai','/auth/login','<span class="sig sig-green">200 OK</span>'],
+    ['09:40:18','Forecast requested','user_019','/predict','<span class="sig sig-green">200 OK</span>'],
+    ['09:39:55','Rate limit reached','user_088','/predict','<span class="sig sig-red">429</span>'],
+    ['09:38:44','Anomaly flagged — ADANIPORTS','system','/anomaly/scan','<span class="sig sig-orange">FLAGGED</span>'],
+    ['09:37:31','Portfolio accessed','user_007','/portfolio','<span class="sig sig-green">200 OK</span>'],
+    ['09:36:20','Failed login ×3','192.168.1.44','/auth/login','<span class="sig sig-red">401</span>'],
+    ['09:35:09','Batch predict run','user_014','/predict/batch','<span class="sig sig-green">200 OK</span>'],
+    ['09:34:01','Anomaly flagged — ZOMATO','system','/anomaly/scan','<span class="sig sig-orange">FLAGGED</span>'],
+    ['09:32:50','New user registered','analyst@abc.com','/auth/register','<span class="sig sig-cyan">201</span>'],
+  ];
+  evs.forEach(([ts,ev,usr,ep,st])=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-family:var(--mono);font-size:11px;color:var(--mid)">${ts}</td><td>${ev}</td><td style="font-family:var(--mono);font-size:11px;color:var(--mid)">${usr}</td><td style="font-family:var(--mono);font-size:11px;color:var(--cyan)">${ep}</td><td>${st}</td>`;
+    t.appendChild(tr);
+  });
+}
+
+// ── TICKER ───────────────────────────────────────────────────────────────────
+const tickCfg=[
+  {id:0, base:1.0847, step:0.0003, fmt:v=>v.toFixed(4)},
+  {id:1, base:1.2683, step:0.0004, fmt:v=>v.toFixed(4)},
+  {id:2, base:24312,  step:8,      fmt:v=>Math.round(v).toLocaleString()},
+  {id:3, base:80104,  step:25,     fmt:v=>Math.round(v).toLocaleString()},
+  {id:4, base:14.32,  step:0.04,   fmt:v=>v.toFixed(2)},
+];
+const tickVals = tickCfg.map(t=>t.base);
+
+function jitterTicker() {
+  tickCfg.forEach((tc,i)=>{
+    const d=(Math.random()-.49)*tc.step;
+    tickVals[i]+=d;
+    const el=document.getElementById('t'+i);
+    const ce=document.getElementById('c'+i);
+    if(!el) return;
+    el.textContent=tc.fmt(tickVals[i]);
+    const pct=((d/tc.base)*100).toFixed(2);
+    ce.textContent=(d>=0?'+':'−')+Math.abs(pct)+'%';
+    ce.className='t-chg '+(d>=0?'up':'down');
+  });
+}
+
+// ── REFRESH DASH ─────────────────────────────────────────────────────────────
+function refreshDash() {
+  document.getElementById('kv3').textContent=(2700+Math.floor(Math.random()*200)).toLocaleString();
+  buildPriceChart();
+}
+
+// ── RUN PREDICT (demo) ────────────────────────────────────────────────────────
+function runPredict() {
+  const badge=document.getElementById('predict-status');
+  const resp=document.getElementById('api-resp');
+  badge.textContent='Calling API…'; badge.className='badge b-gold';
+  resp.style.display='none';
+  setTimeout(()=>{
+    badge.textContent='200 OK'; badge.className='badge b-green';
+    resp.style.display='block';
+  },900);
+}
+
+// ── INVESTIGATE STOCK ────────────────────────────────────────────────────────
+function investigateStock(sym) {
+  alert(`📊 Investigation queued for ${sym}\n\nIsolation Forest score will be cross-referenced with social sentiment and volume data for analyst review.\n\n⚠ Anomaly ≠ confirmed fraud.`);
+}
+
+// ── INIT ALL ─────────────────────────────────────────────────────────────────
+function initAll() {
+  buildPriceChart();
+  buildHeatmap();
+  buildTags();
+  buildLogs();
+  setInterval(jitterTicker, 1800);
+  setInterval(()=>{
+    if (document.getElementById('page-dashboard').classList.contains('active')) buildPriceChart();
+  }, 9000);
+}
+
+// allow pressing Enter on auth
+document.getElementById('auth-pass').addEventListener('keydown', e=> { if(e.key==='Enter') doAuth(); });
+</script>
+<script src="/ui/static/js/fmipLive.js"></script>
 </body>
 </html>

@@ -22,6 +22,7 @@ Config (environment variables, all optional)
   FMP_MAX_BAR_MOVE largest accepted one-bar move as a fraction, default 0.03
 """
 
+from fmip_routes import build_router
 import json
 import os
 import secrets
@@ -33,7 +34,7 @@ from typing import Literal, Optional
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field, model_validator
 
 import live_feed
@@ -167,6 +168,9 @@ app.mount("/ui/static", StaticFiles(directory=os.path.join(HERE, "../ui/static")
 def require_key(x_api_key: Optional[str] = Header(None)):
     if API_KEY and not (x_api_key and secrets.compare_digest(x_api_key, API_KEY)):
         raise HTTPException(status_code=401, detail="missing or invalid X-API-Key")
+#=========================================================================
+app.include_router(build_router(require_key))
+#=========================================================================
 
 
 def _to_frame(bars: list[Bar]) -> pd.DataFrame:
@@ -205,7 +209,10 @@ def root():
 def ui():
     if not os.path.exists(UI_PATH):
         raise HTTPException(404, f"dashboard file not found at {os.path.abspath(UI_PATH)} - copy ui/index.html there")
-    return FileResponse(UI_PATH, media_type="text/html")
+    with open(UI_PATH, encoding="utf-8") as page_file:
+        page = page_file.read()
+    keyScript = f'<script>window.FMIP_API_KEY = {json.dumps(API_KEY or "")};</script>'
+    return HTMLResponse(page.replace("</head>", keyScript + "</head>", 1))
 
 
 @app.get("/health")
@@ -294,3 +301,8 @@ def sync():
             return {"added": 0, "last_bar_ts": eng.last_ts.isoformat()}
         raise
     return {"added": len(payload), "last_bar_ts": eng.last_ts.isoformat()}
+
+
+
+# 2) Add right after the line:  app.mount("/ui/static", ...)
+app.include_router(build_router(require_key))
