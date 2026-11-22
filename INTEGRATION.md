@@ -32,6 +32,8 @@ python3 live_feed.py                  # backfills since the last bar it has, the
 | GET | `/history?limit=100&mode=live` | Logged predictions, with `realised_price` filled in once known |
 | GET | `/forward-test?mode=live` | Live scorecard on unseen bars (see section 5) |
 | GET | `/model/info` | Which model runs each horizon + validation summary |
+| GET | `/bars?limit=300` | Recent bars + the stop AND Lorentzian signal that was live at each one (chart data) |
+| POST | `/sync` | Pull real bars from Dukascopy since the last one the engine has seen (needs internet) |
 
 If `FMP_API_KEY` is set, every endpoint except `/health` needs header `X-API-Key: <key>`.
 
@@ -60,8 +62,12 @@ If `FMP_API_KEY` is set, every endpoint except `/health` needs header `X-API-Key
     "level": 1.16366, "trend": "down", "distance_pips": 16.0, "distance_atr": 1.40,
     "atr_pips": 11.5, "key_multiplier": 1.17, "adaptive": true, "flip": null
   },
+  "lorentzian": {
+    "bias": "down", "confidence": 0.625, "flip": null, "exit": null,
+    "kernel_estimate": 1.16352, "skill_established": false
+  },
   "signal": {"action": "HOLD", "basis": "stop_only", "model_bias": "neutral",
-             "confirmed_by_model": null, "edge_verified": false},
+             "confirmed_by_model": null, "confirmed_by_lorentzian": null, "edge_verified": false},
   "warnings": []
 }
 ```
@@ -78,11 +84,26 @@ If `FMP_API_KEY` is set, every endpoint except `/health` needs header `X-API-Key
   `flip` is non-null on the single bar where price crossed the stop.
 - **`key_multiplier`** - how the stop adapted: >1 = market hotter than its recent norm (stop is
   wider), <1 = quieter (stop is tighter). Range 0.75-1.5 around the base key 3.0.
+- **`lorentzian`** - a second, independent read on direction from a Lorentzian-distance ANN
+  classifier (ported from the "Krishna ML Predictor" Pine indicator), separate from the xgb
+  quantile model above. `bias` (`up`/`down`/`neutral`) and `confidence` (0-1) are the persisted
+  classifier state; `flip` (`buy`/`sell`) is set only on the bar a fresh, fully-filtered entry
+  fires - that's the buy/sell marker for the chart, distinct from `trailing_stop.flip`.
+  `kernel_estimate` is a smoothed trend line in price units (the "gold line"). Treat all of it as
+  **informational until `skill_established` is `true`** - same honesty rule as `edge_verified`
+  below, just scoped to this one signal.
 - **`signal.action`** - `BUY`/`SELL` only on a flip bar, otherwise `HOLD` (same semantics as the
   original Pine "ATR Bot" alerts).
+- **`signal.basis`** - which signals actually gate `action` (only ones with a verified edge do):
+  `"stop_only"`, or `"stop"` plus whichever of `"model"` / `"lorentzian"` have `directional_skill`
+  / `lorentzian.skill_established` set. `confirmed_by_model` / `confirmed_by_lorentzian` are `null`
+  until that signal is part of `basis` - a non-null `false` means it disagreed with the stop flip
+  on this bar and vetoed it back to `HOLD`.
 - **`signal.edge_verified`** - **please surface this in the UI.** It is `false`: backtests with
-  transaction costs did not show a tradable edge (see `PRICE_MODEL_REPORT.md`). A small
-  "research prototype - not trading advice" badge tied to this flag is the honest way to show it.
+  transaction costs did not show a tradable edge for the stop or the model-gated variants (see
+  `PRICE_MODEL_REPORT.md`). A small "research prototype - not trading advice" badge tied to this
+  flag is the honest way to show it. It flips `true` only if some backtested variant - including
+  the Lorentzian-gated one - clears the same net-of-cost bar on holdout.
 - **`warnings`** - e.g. `gap_in_data:6h`, `large_move:>6_sigma`. Show as a yellow chip.
 
 ```js
@@ -100,6 +121,11 @@ const stop = p.trailing_stop.level;
 - `signals`   - one row per predicted bar (stop level, trend, flip, action, model version, `mode`).
 - `forecasts` - one row per bar x horizon (p10/p50/p90 + **`realised_price`**, filled in later).
 - Optional `bars` table (commented at the bottom) if you want the API to warm up from the DB.
+- **Not yet persisted:** the `lorentzian` block is only in the live API response and `/bars`
+  chart history (in-memory, `window`-bar rolling deque) - it isn't written to `signals` yet. If
+  you want it in `/history` or the forward-test scorecard too, that's a `schema.sql` +
+  `store.Store.log()` change, deliberately left out of this pass so the DB/dashboard teams can
+  review the API shape first.
 
 To move to Postgres/MySQL: re-implement the five methods of `store.Store`
 (`log`, `pending`, `resolve`, `history`, `forward_stats`) against your DB - nothing else in the

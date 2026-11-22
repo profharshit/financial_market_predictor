@@ -40,6 +40,8 @@ import live_feed
 from features import load_ohlcv
 from inference_engine import BarRejected, PredictionEngine
 from store import Store
+from fastapi.staticfiles import StaticFiles
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("FMP_MODEL_PATH", os.path.join(HERE, "../models/eurusd_price_model.joblib"))
@@ -105,11 +107,22 @@ class TrailingStop(BaseModel):
     flip: Optional[Literal["buy", "sell"]] = Field(None, description="Set only on the bar where price crossed the stop")
 
 
+class Lorentzian(BaseModel):
+    bias: Literal["up", "down", "neutral"] = Field(..., description="Persisted ANN+filter state")
+    confidence: float = Field(..., description="0-1 neighbor-vote strength")
+    flip: Optional[Literal["buy", "sell"]] = Field(None, description="Set only on a fresh, fully-filtered entry bar")
+    exit: Optional[Literal["long", "short"]] = Field(None, description="Fixed hold_bars exit, if any, this bar")
+    kernel_estimate: float = Field(..., description="Nadaraya-Watson trend estimate, same units as price")
+    skill_established: bool = Field(..., description="False = informational only; see lorentzian_skill in the model artifact")
+
+
 class Signal(BaseModel):
     action: Literal["BUY", "SELL", "HOLD"] = Field(..., description="BUY/SELL only on a stop flip bar")
-    basis: Literal["stop_only", "stop+model"]
+    basis: Literal["stop_only", "stop+model", "stop+lorentzian", "stop+model+lorentzian"]
     model_bias: Literal["up", "down", "neutral"] = Field(..., description="4h model lean - informational")
     confirmed_by_model: Optional[bool]
+    confirmed_by_lorentzian: Optional[bool] = Field(None, description="null until lorentzian is part of basis; "
+                                                                       "false means it vetoed the stop flip back to HOLD")
     edge_verified: bool = Field(..., description="False = no net-of-cost trading edge was demonstrated. "
                                                  "Show a disclaimer in the UI.")
 
@@ -122,6 +135,7 @@ class PredictionResponse(BaseModel):
     model_version: str
     forecasts: list[Forecast]
     trailing_stop: TrailingStop
+    lorentzian: Lorentzian
     signal: Signal
     warnings: list[str]
 
@@ -147,6 +161,7 @@ app = FastAPI(title="EUR/USD Price Forecast + Adaptive Trailing Stop API", versi
                           "a volatility-adaptive ratcheting stop-loss, and a live forward-test scorecard.")
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_methods=["GET", "POST"],
                    allow_headers=["Content-Type", "X-API-Key"])
+app.mount("/ui/static", StaticFiles(directory=os.path.join(HERE, "../ui/static")), name="ui-static")
 
 
 def require_key(x_api_key: Optional[str] = Header(None)):

@@ -13,8 +13,13 @@ What it does (all chronological, no shuffling anywhere):
   3. Picks the winner PER HORIZON with a rule fixed in advance (below).
   4. Scores the winner on the untouched last 15% (holdout).
   5. Backtests trailing-stop strategies (fixed vs adaptive stop, with and
-     without the model gate) on the holdout, WITH transaction costs.
-  6. Refits the winners on ALL data and saves the deployable artifact.
+     without the model gate, and gated by the Lorentzian ANN classifier
+     instead) on the holdout, WITH transaction costs.
+  6. Refits the winners on ALL data and saves the deployable artifact,
+     including the Lorentzian config and its own holdout skill verdict
+     (`lorentzian_config` / `lorentzian_skill` - see lorentzian_signal.py's
+     module docstring for why that verdict, not just its presence, is what
+     lets inference_engine.py use it to confirm BUY/SELL).
 
 Selection rule (fixed before looking at results):
   A complex model replaces the vol_only benchmark only if, across the
@@ -40,7 +45,11 @@ from sklearn.model_selection import TimeSeriesSplit
 from features import (FEATURE_COLS, HORIZONS, PIP, SIGNAL_HORIZON,
                        build_features, load_ohlcv, make_targets)
 from indicators import atr_trailing_stop, atr_trailing_stop_adaptive
+from lorentzian_signal import LorentzianConfig, analyze_lorentzian
 from price_models import CANDIDATES, QUANTILES
+
+# up/down/neutral -> +1/-1/0, matching lorentzian_signal.LONG/SHORT/NEUTRAL
+_LOR_BIAS_SIGN = {"up": 1, "down": -1, "neutral": 0}
 
 INPUT_CSV = "../data/raw/eurusd_ohlcv.csv"
 MODEL_OUT = "../models/eurusd_price_model.joblib"
@@ -296,6 +305,17 @@ def main():
     gated = np.where(bias == tr_adapt, tr_adapt, 0)
     bt["holdout"][f"stop_adaptive_gated_by_{cx}"] = run(np.nan_to_num(gated), hold_sl)
 
+    # Lorentzian-gated variant on holdout: same idea, gated by the ANN classifier's
+    # persisted bias instead of the xgb quantile model's median forecast. Computed
+    # ONCE over the true full history (see lorentzian_signal.py's module docstring
+    # on why this batch path has no window-boundary state issue, unlike the live
+    # engine's rolling-window recompute).
+    lor_cfg = LorentzianConfig()
+    lor_bias = (analyze_lorentzian(ohlcv, lor_cfg)["lorentzian_bias"]
+                .reindex(F.index).map(_LOR_BIAS_SIGN).fillna(0).to_numpy())
+    gated_lor = np.where(lor_bias == tr_adapt, tr_adapt, 0)
+    bt["holdout"]["stop_adaptive_gated_by_lorentzian"] = run(np.nan_to_num(gated_lor), hold_sl)
+
     print(f"Backtest (cost {COST_PIPS} pip per position change; Sharpe s.e. ~ +/-x):")
     for label in ("full_sample", "holdout"):
         print(f"  [{label}]")
@@ -310,6 +330,17 @@ def main():
                         for k, v in bt["holdout"].items() if k != "buy_and_hold")
     bt["edge_verified"] = bool(edge_verified)
     print(f"\nTrading edge verified net of costs on holdout: {edge_verified}")
+
+    # Same net-of-cost bar, applied just to the Lorentzian-gated variant: this is
+    # the verdict inference_engine.py reads as `lorentzian_skill` to decide whether
+    # lorentzian.bias may confirm/veto BUY/SELL, or stay informational-only (see
+    # lorentzian_signal.py's module docstring). An older model artifact (trained
+    # before this check existed) has no `lorentzian_skill` key at all, and the
+    # engine already falls back to False for that case - so this is additive, not
+    # a breaking change to artifacts already deployed.
+    lor_bt = bt["holdout"]["stop_adaptive_gated_by_lorentzian"]
+    lorentzian_skill = bool(lor_bt["total_return_pct"] > 0 and lor_bt["sharpe"] > 2 * lor_bt["sharpe_se"])
+    print(f"Lorentzian-gated edge verified net of costs on holdout: {lorentzian_skill}")
 
     # -------------------------------------------------------- final refit + save
     print("\nRefitting winners on ALL data for deployment ...")
@@ -326,12 +357,14 @@ def main():
         "signal_horizon": SIGNAL_HORIZON,
         "directional_skill": dir_skill, "conf_threshold": conf_thr,
         "edge_verified": bool(edge_verified),
+        "lorentzian_config": lor_cfg.as_dict(), "lorentzian_skill": lorentzian_skill,
         "data_range": [str(F.index[0]), str(F.index[-1])], "n_rows": n,
     }
     joblib.dump(artifact, MODEL_OUT)
     results["artifact"] = {"version": version, "kinds": winners,
                            "directional_skill": {str(k): v for k, v in dir_skill.items()},
-                           "edge_verified": bool(edge_verified)}
+                           "edge_verified": bool(edge_verified),
+                           "lorentzian_skill": lorentzian_skill}
     with open(METRICS_OUT, "w") as f:
         json.dump(results, f, indent=2, default=float)
     print(f"Model   -> {MODEL_OUT}  (version {version})")

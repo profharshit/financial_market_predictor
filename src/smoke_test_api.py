@@ -2,7 +2,9 @@
 End-to-end smoke test - run from src/:   python3 smoke_test_api.py
 Simulates "upcoming data": warms the engine on history ENDING 400 bars before the
 CSV's last bar, then feeds those 400 bars in (mix of single + batch), and checks
-the contract, the stop's ratchet property, and forward-test resolution.
+the contract, the stop's ratchet property, forward-test resolution, and the
+Lorentzian ANN signal (present + well-formed in the API response, and identical
+whether bars arrive one at a time or as one batch).
 """
 import os, tempfile, sys
 import numpy as np, pandas as pd
@@ -33,6 +35,11 @@ with TestClient(serve_api.app) as c:
     allok &= ok(all(f["price_p10"] < f["price_p50"] < f["price_p90"] for f in j["forecasts"]), "p10 < p50 < p90 for every horizon")
     print("      sample:", {k: j[k] for k in ("as_of", "last_close")}, "| stop", round(j["trailing_stop"]["level"], 5),
           j["trailing_stop"]["trend"], "| 4h band", round(j["forecasts"][1]["price_p10"], 5), "-", round(j["forecasts"][1]["price_p90"], 5))
+    lor = j["lorentzian"]
+    allok &= ok("lorentzian" in j and lor["bias"] in ("up", "down", "neutral") and 0 <= lor["confidence"] <= 1
+                and lor["flip"] in (None, "buy", "sell") and lor["exit"] in (None, "long", "short"),
+                "lorentzian block present in the response and well-formed")
+    print("      lorentzian:", {k: lor[k] for k in ("bias", "flip", "confidence", "skill_established")})
 
     allok &= ok(c.post("/predict", json=bar(tail.iloc[0]), headers=H).status_code == 409, "duplicate bar -> 409")
     bad = bar(tail.iloc[1]); bad["high"] = bad["low"] - 0.001
@@ -82,5 +89,17 @@ batch = e2.on_bars(t.iloc[:120])
 d = max(abs(a["forecasts"][k]["price_p50"] - b["forecasts"][k]["price_p50"]) for a, b in zip(single, batch) for k in range(3))
 ds = max(abs(a["trailing_stop"]["level"] - b["trailing_stop"]["level"]) for a, b in zip(single, batch))
 allok &= ok(d < 1e-7 and ds < 1e-12, f"single-bar path == batch path (max p50 diff {d:.1e}, max stop diff {ds:.1e})")
+
+# same check for the Lorentzian engine's persisted state - this is exactly the
+# window-boundary bug lorentzian_signal.py's module docstring describes: bias/
+# confidence/kernel are continuous and window-safe, but must never depend on
+# whether a bar was fed one-at-a-time or as one big batch.
+dl = max(abs(a["lorentzian"]["confidence"] - b["lorentzian"]["confidence"]) for a, b in zip(single, batch))
+dk = max(abs(a["lorentzian"]["kernel_estimate"] - b["lorentzian"]["kernel_estimate"]) for a, b in zip(single, batch))
+bias_mismatches = sum(a["lorentzian"]["bias"] != b["lorentzian"]["bias"] for a, b in zip(single, batch))
+flip_mismatches = sum(a["lorentzian"]["flip"] != b["lorentzian"]["flip"] for a, b in zip(single, batch))
+allok &= ok(dl < 1e-9 and dk < 1e-9 and bias_mismatches == 0 and flip_mismatches == 0,
+            f"lorentzian single-bar path == batch path (max confidence diff {dl:.1e}, max kernel diff {dk:.1e}, "
+            f"bias mismatches {bias_mismatches}, flip mismatches {flip_mismatches})")
 
 print("\nALL TESTS PASSED" if allok else "\nSOME TESTS FAILED"); sys.exit(0 if allok else 1)

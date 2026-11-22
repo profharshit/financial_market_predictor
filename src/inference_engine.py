@@ -1,10 +1,15 @@
 """
-PredictionEngine - the live brain. Three cooperating parts:
+PredictionEngine - the live brain. Four cooperating parts:
 
   1. FEATURES   features.build_features() on a rolling window of recent bars
                 (the SAME function training used -> no train/serve skew)
   2. FORECAST   per-horizon quantile model -> price band (p10 / p50 / p90)
   3. STOP       TrailingStopManager: persistent, adaptive, ratchet-only stop
+  4. LORENTZIAN LorentzianEngine: persistent ANN buy/sell classifier (ported
+                "Krishna ML Predictor") - a second, independent read on
+                direction, used to further confirm BUY/SELL once (and only
+                once) train_price_model.py's backtest has shown it actually
+                adds edge net of costs (see `lorentzian_skill` below).
 
 `on_bars()` is the single entry point (one bar = a batch of one). All bars in a
 call are validated BEFORE any state is touched, so a bad bar can never leave
@@ -20,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from features import (FEATURE_COLS, PIP, add_trading_hours, build_features, z_to_price)
+from lorentzian_signal import LorentzianConfig, LorentzianEngine, analyze_lorentzian
 from price_models import QUANTILES  # noqa: F401  (import so joblib can resolve model classes)
 from trailing_stop import TrailingStopManager
 
@@ -44,8 +50,20 @@ class PredictionEngine:
         self.hist.index = pd.DatetimeIndex([], tz="UTC", name="timestamp")
         self.stop = TrailingStopManager(adaptive=True)
         self.stop_hist: deque = deque(maxlen=window)   # (level, trend, flip) aligned with self.hist
+        self.lorentzian_hist: deque = deque(maxlen=window)   # (bias, flip, confidence, kernel) aligned with self.hist
         self.last_result: dict | None = None
         self.sig_h = self.art["signal_horizon"]
+
+        # Lorentzian ANN signal - config + "has it shown a net edge" verdict
+        # both come from the trained artifact when present (train_price_model.py
+        # writes them), so an OLDER model artifact (trained before this was
+        # added) still loads fine: the engine just falls back to defaults and
+        # treats the signal as informational-only (lorentzian_skill=False),
+        # exactly like the xgb quantile model's own bias already is until
+        # `directional_skill` is established.
+        lor_cfg = self.art.get("lorentzian_config")
+        self.lorentzian = LorentzianEngine(LorentzianConfig(**lor_cfg) if lor_cfg else LorentzianConfig())
+        self.lorentzian_skill = bool(self.art.get("lorentzian_skill", False))
 
     # ------------------------------------------------------------ properties
     @property
@@ -63,9 +81,10 @@ class PredictionEngine:
     # --------------------------------------------------------------- warm-up
     def warm_up(self, ohlcv: pd.DataFrame, predict_last: bool = True) -> None:
         """
-        Feed history (UTC-indexed OHLCV). The stop state sees ALL of it; features keep the last
-        `window` bars. With predict_last, the final bar is pushed through on_bars() so /latest
-        and the dashboard have a prediction immediately after startup.
+        Feed history (UTC-indexed OHLCV). The stop and Lorentzian engine both see
+        ALL of it; features keep the last `window` bars. With predict_last, the
+        final bar is pushed through on_bars() so /latest and the dashboard have
+        a prediction immediately after startup.
         """
         ohlcv = ohlcv[OHLCV].astype(float).sort_index()
         body = ohlcv.iloc[:-1] if (predict_last and len(ohlcv) > MIN_BARS) else ohlcv
@@ -74,18 +93,37 @@ class PredictionEngine:
         for h, l, c in zip(body["high"].to_numpy(), body["low"].to_numpy(), body["close"].to_numpy()):
             st = self.stop.update(float(h), float(l), float(c))
             self.stop_hist.append((st["stop"], st["trend"], "buy" if st["buy"] else "sell" if st["sell"] else None))
+        self.lorentzian.warm_up(body)   # same `body` the stop warms on - on_bars() below covers the rest
+        # Chart-history-only approximation for older bars: one batch pass over
+        # enough trailing runway (window + buffer) for the continuous ANN/filter
+        # values to be well converged, THEN keep only the last `window` rows.
+        # This is display data, not engine state - it is never read back into
+        # self.lorentzian (that only ever advances via the exact incremental
+        # warm_up()/update_batch() path above and below).
+        self.lorentzian_hist.clear()
+        lor_runway = body.tail(self.window + 400)
+        lor_disp = analyze_lorentzian(lor_runway, self.lorentzian.cfg).tail(min(self.window, len(body)))
+        for row in lor_disp.itertuples():
+            # pandas 3.x rewrites "no flip" as float NaN inside this DataFrame
+            # column, not Python None - see analyze_lorentzian()'s docstring
+            # comment. Must sanitize here or /bars fails to JSON-serialize.
+            flip = None if pd.isna(row.lorentzian_flip) else row.lorentzian_flip
+            self.lorentzian_hist.append((row.lorentzian_bias, flip, float(row.lorentzian_confidence),
+                                         float(row.lorentzian_kernel)))
         self.hist = body.tail(self.window).copy()
         if body is not ohlcv:
             self.on_bars(ohlcv.iloc[[-1]])
 
     def recent(self, limit: int = 300) -> dict:
-        """Last `limit` bars + the stop that was live at each one (for charting)."""
+        """Last `limit` bars + the stop/Lorentzian signal that was live at each one (for charting)."""
         n = min(limit, len(self.hist), len(self.stop_hist))
         h, st = self.hist.tail(n), list(self.stop_hist)[-n:]
+        lor = list(self.lorentzian_hist)[-n:]
         return {
             "bars": [{"t": ts.isoformat(), "o": r.open, "h": r.high, "l": r.low, "c": r.close, "v": r.volume}
                      for ts, r in h.iterrows()],
             "stop": [{"level": a, "trend": b, "flip": c} for a, b, c in st],
+            "lorentzian": [{"bias": a, "flip": b, "confidence": c, "kernel": d} for a, b, c, d in lor],
         }
 
     # ------------------------------------------------------------ validation
@@ -124,11 +162,19 @@ class PredictionEngine:
         qz = {h: self.art["models"][h].predict(X) for h in self.art["horizons"]}
         close, sigma = feats["close"].to_numpy(), feats["sigma"].to_numpy()
 
+        # Lorentzian signal for the whole batch in one pass (see lorentzian_signal.py
+        # for why this is safe: continuous ANN/filter/kernel values are recomputed
+        # from the rolling window same as the price features are, but the discrete
+        # signal/hold/exit state is this engine's own persisted state, never reset).
+        lor_batch = self.lorentzian.update_batch(combined[OHLCV], len(bars))
+
         results = []
         gap_ref = prev_last
         for i, (ts, bar) in enumerate(bars.iterrows()):
             st = self.stop.update(bar["high"], bar["low"], bar["close"])
             self.stop_hist.append((st["stop"], st["trend"], "buy" if st["buy"] else "sell" if st["sell"] else None))
+            lor = lor_batch[i]
+            self.lorentzian_hist.append((lor["bias"], lor["flip"], lor["confidence"], lor["kernel"]))
             warns = []
             if gap_ref is not None:
                 gap_h = (ts - gap_ref).total_seconds() / 3600
@@ -150,21 +196,37 @@ class PredictionEngine:
                     "model": self.art["kinds"][h],
                 })
 
-            # ---- signal
+            # ---- signal: stop flip, optionally confirmed by whichever of the xgb
+            # quantile model / Lorentzian ANN have actually demonstrated a net-of-
+            # cost edge in train_price_model.py's backtest (both start False/None
+            # on a fresh model until proven, same bar the ATR-stop-only signal
+            # itself had to clear before anything was trusted here).
             p50_z = float(qz[self.sig_h][i][1])
             thr = self.art["conf_threshold"][self.sig_h]
             bias = "up" if p50_z >= thr else "down" if p50_z <= -thr else "neutral"
             flip = "buy" if st["buy"] else "sell" if st["sell"] else None
             action = {"buy": "BUY", "sell": "SELL"}.get(flip, "HOLD")
-            skill = bool(self.art["directional_skill"][self.sig_h])
-            confirmed = None
-            basis = "stop_only"
-            if skill:
-                basis = "stop+model"
-                if action != "HOLD":
-                    confirmed = (action == "BUY" and bias == "up") or (action == "SELL" and bias == "down")
-                    if not confirmed:
-                        action = "HOLD"
+
+            model_skill = bool(self.art["directional_skill"][self.sig_h])
+            confirmed_model = None
+            if model_skill and action != "HOLD":
+                confirmed_model = (action == "BUY" and bias == "up") or (action == "SELL" and bias == "down")
+                if not confirmed_model:
+                    action = "HOLD"
+
+            confirmed_lorentzian = None
+            if self.lorentzian_skill and action != "HOLD":
+                confirmed_lorentzian = (action == "BUY" and lor["bias"] == "up") or \
+                                       (action == "SELL" and lor["bias"] == "down")
+                if not confirmed_lorentzian:
+                    action = "HOLD"
+
+            basis_parts = ["stop"]
+            if model_skill:
+                basis_parts.append("model")
+            if self.lorentzian_skill:
+                basis_parts.append("lorentzian")
+            basis = "stop_only" if len(basis_parts) == 1 else "+".join(basis_parts)
 
             atr_v = st["atr"]
             results.append({
@@ -180,9 +242,16 @@ class PredictionEngine:
                     "key_multiplier": float(st["key_multiplier"]), "adaptive": True,
                     "flip": flip,
                 },
+                "lorentzian": {
+                    "bias": lor["bias"], "confidence": lor["confidence"],
+                    "flip": lor["flip"], "exit": lor["exit"],
+                    "kernel_estimate": lor["kernel"],
+                    "skill_established": self.lorentzian_skill,
+                },
                 "signal": {
                     "action": action, "basis": basis, "model_bias": bias,
-                    "confirmed_by_model": confirmed,
+                    "confirmed_by_model": confirmed_model,
+                    "confirmed_by_lorentzian": confirmed_lorentzian,
                     "edge_verified": bool(self.art["edge_verified"]),
                 },
                 "warnings": warns,

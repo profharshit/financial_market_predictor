@@ -992,12 +992,22 @@
         "time_in_market_pct": 7.35826296743064,
         "gross_return_pct": -0.45124262953193384,
         "bars": 2486
+      },
+      "stop_adaptive_gated_by_lorentzian": {
+        "total_return_pct": -4.750840200711936,
+        "sharpe": -2.801187254186919,
+        "sharpe_se": 1.5843157246477264,
+        "max_drawdown_pct": -6.518457822321744,
+        "position_changes": 248,
+        "time_in_market_pct": 74.10534780860475,
+        "gross_return_pct": -2.551374627093239,
+        "bars": 2486
       }
     },
     "edge_verified": false
   },
   "artifact": {
-    "version": "20260924-0625-xgb_quantile+xgb_quantile+vol_only",
+    "version": "20260926-0220-xgb_quantile+xgb_quantile+vol_only",
     "kinds": {
       "1": "xgb_quantile",
       "4": "xgb_quantile",
@@ -1008,6 +1018,7 @@
       "4": false,
       "24": false
     },
-    "edge_verified": false
+    "edge_verified": false,
+    "lorentzian_skill": false
   }
 }
