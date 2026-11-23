@@ -1,5 +1,5 @@
 // FILE: financial-market-project/ui/static/js/fmipLive.js
-// NEW FILE. Place it in ui/static/js/ (the folder serve_api.py already mounts at /ui/static).
+// Replace the existing file. Folder is already mounted by serve_api.py at /ui/static.
 // Connects the FMIP dashboard to the forecast API (:8000), the anomaly detector and the classifier API (:8001).
 
 const FMIP_CONFIG = {
@@ -8,7 +8,13 @@ const FMIP_CONFIG = {
   apiKey: window.FMIP_API_KEY || localStorage.getItem('fmipApiKey') || '',
 };
 
+const REQUEST_TIMEOUT_MS = 15000;
+const SYNC_TIMEOUT_MS = 60000;
 const DASHBOARD_REFRESH_MS = 30000;
+const HEAVY_REFRESH_MS = 120000;
+const CHART_REFRESH_MS = 60000;
+const BARS_FOR_HOURLY_CHART = 300;
+const BARS_FOR_AGGREGATED_CHART = 600;
 const HOURS_PER_TIMEFRAME = { '1H': 1, '4H': 4, '1D': 24 };
 const HORIZON_HOURS = [1, 4, 24];
 const KEY_MULTIPLIER_RANGE = { min: 0.75, max: 1.5 };
@@ -31,6 +37,9 @@ let sentimentSummary = null;
 let stopLineSeries = null;
 let kernelLineSeries = null;
 let lastBuiltChartKey = '';
+let lastChartFetchTime = 0;
+let isChartLoading = false;
+let isSyncing = false;
 
 const originalBuildPriceChart = buildPriceChart;
 const originalUpdateTradeSignalUI = updateTradeSignalUI;
@@ -40,18 +49,28 @@ const originalInitAll = initAll;
 
 // ───────────────────────── HTTP + DOM HELPERS ─────────────────────────
 
-// One place that talks HTTP so every call sends the API key and handles errors the same way.
-async function requestJson(baseUrl, path, options = {}) {
+// One place that talks HTTP so every call sends the key, times out, and fails the same way.
+async function requestJson(baseUrl, path, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const headers = { 'Content-Type': 'application/json' };
   if (FMIP_CONFIG.apiKey) headers['X-API-Key'] = FMIP_CONFIG.apiKey;
-  const response = await fetch(baseUrl + path, { ...options, headers });
-  if (!response.ok) throw new Error(`${path} failed with status ${response.status}`);
-  return response.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(baseUrl + path, { ...options, headers, signal: controller.signal });
+    if (response.status === 401) throw new Error('API key missing or wrong');
+    if (!response.ok) throw new Error(`${path} failed with status ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error(`${path} timed out`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Shortcut for calls to the forecast API.
-function getForecastApi(path, options) {
-  return requestJson(FMIP_CONFIG.forecastApiUrl, path, options);
+function getForecastApi(path, options, timeoutMs) {
+  return requestJson(FMIP_CONFIG.forecastApiUrl, path, options, timeoutMs);
 }
 
 // Shortcut for calls to the classifier API.
@@ -82,10 +101,11 @@ function findForecast(prediction, horizonHours) {
   return prediction.forecasts.find(forecast => forecast.horizon_bars === horizonHours);
 }
 
-// Shows the user that the forecast API cannot be reached instead of failing silently.
+// Tells the user why the forecast API failed (wrong key looks different from offline).
 function reportForecastApiOffline(error) {
   console.warn('Forecast API problem:', error.message);
-  setText('#priceFeedStatus', 'API OFFLINE');
+  const isKeyProblem = error.message.includes('key');
+  setText('#priceFeedStatus', isKeyProblem ? 'API KEY WRONG' : 'API OFFLINE');
 }
 
 // Marks the classifier-driven widgets as unavailable when port 8001 is not running.
@@ -206,11 +226,16 @@ function updateEurusdTicker(hourlyRows) {
   document.getElementById('c0').className = 't-chg ' + (changePct >= 0 ? 'up' : 'down');
 }
 
+// Fetches only as many bars as the selected timeframe needs, which keeps the request small.
+function barsNeededFor(timeframe) {
+  return timeframe === '1H' ? BARS_FOR_HOURLY_CHART : BARS_FOR_AGGREGATED_CHART;
+}
+
 // Fetches real bars and draws them; only rebuilds the chart when asset or timeframe changed.
 async function drawEurusdFromApi() {
-  const barsResponse = await getForecastApi('/bars?limit=600');
-  const hourlyRows = toRows(barsResponse);
   const timeframe = getSelectedTimeframe();
+  const barsResponse = await getForecastApi(`/bars?limit=${barsNeededFor(timeframe)}`);
+  const hourlyRows = toRows(barsResponse);
   const chartKey = `EURUSD|${timeframe}`;
   if (chartKey !== lastBuiltChartKey || !stopLineSeries) {
     originalBuildPriceChart();
@@ -224,19 +249,39 @@ async function drawEurusdFromApi() {
   setText('#priceFeedStatus', 'API · ' + barsResponse.bars[barsResponse.bars.length - 1].t.slice(0, 16).replace('T', ' ') + ' UTC');
 }
 
+// Decides if the chart needs new data: forced, changed by the user, or simply getting old.
+function shouldReloadChart(forceReload) {
+  const chartKey = `EURUSD|${getSelectedTimeframe()}`;
+  const userChangedChart = chartKey !== lastBuiltChartKey;
+  const dataIsOld = Date.now() - lastChartFetchTime >= CHART_REFRESH_MS && !document.hidden;
+  return forceReload || userChangedChart || dataIsOld;
+}
+
+// Keeps the old chart on screen after a failed fetch and only builds a demo chart if none exists.
+function handleChartFailure(error) {
+  reportForecastApiOffline(error);
+  if (stopLineSeries) return;
+  originalBuildPriceChart();
+  lastBuiltChartKey = `EURUSD|${getSelectedTimeframe()}`;
+}
+
 // Replaces the demo chart builder: real data for EUR/USD, the original builder for BTC and ETH.
-async function buildPriceChartLive() {
+async function buildPriceChartLive(forceReload = false) {
   if (activeAsset !== 'EURUSD') {
     stopLineSeries = kernelLineSeries = null;
     lastBuiltChartKey = '';
     originalBuildPriceChart();
     return;
   }
+  if (isChartLoading || !shouldReloadChart(forceReload === true)) return;
+  isChartLoading = true;
   try {
     await drawEurusdFromApi();
   } catch (error) {
-    originalBuildPriceChart();
-    reportForecastApiOffline(error);
+    handleChartFailure(error);
+  } finally {
+    lastChartFetchTime = Date.now();
+    isChartLoading = false;
   }
 }
 
@@ -691,24 +736,53 @@ function keepEurusdTickerReal() {
   changeElement.className = saved.style;
 }
 
-// Loads every live panel on the dashboard; each service fails independently.
-function loadDashboardData() {
-  refreshLatestPrediction().catch(reportForecastApiOffline);
-  getForecastApi('/forward-test').then(renderCoverageKpi).catch(reportForecastApiOffline);
-  loadAnomalyData().catch(error => console.warn('Anomaly scan problem:', error.message));
-  fetchSentimentSummary().catch(markClassifierOffline);
+// Loads the cheap panels (latest forecast and coverage) that are safe to refresh often.
+function loadLightDashboardData() {
+  const latestJob = refreshLatestPrediction().catch(reportForecastApiOffline);
+  const coverageJob = getForecastApi('/forward-test').then(renderCoverageKpi).catch(reportForecastApiOffline);
+  return Promise.all([latestJob, coverageJob]);
 }
 
-// Refresh button: pull new bars from Dukascopy when possible, then reload everything.
-async function syncAndReload() {
+// Loads the slow panels (anomaly scan and classifier summary) that only need occasional refreshes.
+function loadHeavyDashboardData() {
+  const anomalyJob = loadAnomalyData().catch(error => console.warn('Anomaly scan problem:', error.message));
+  const sentimentJob = fetchSentimentSummary().catch(markClassifierOffline);
+  return Promise.all([anomalyJob, sentimentJob]);
+}
+
+// Locks the refresh button while syncing so repeated clicks cannot pile up requests.
+function setRefreshButtonBusy(isBusy) {
+  const button = document.querySelector('#page-dashboard .btn-row .btn-c');
+  if (!button) return;
+  button.disabled = isBusy;
+  button.textContent = isBusy ? '⏳ Syncing…' : '↻ Refresh';
+}
+
+// Asks the server to pull new bars from Dukascopy and returns how many were added.
+async function syncNewBars() {
   try {
-    await getForecastApi('/sync', { method: 'POST' });
+    const result = await getForecastApi('/sync', { method: 'POST' }, SYNC_TIMEOUT_MS);
+    return result.added;
   } catch (error) {
     console.warn('Sync skipped:', error.message);
+    return 0;
   }
-  lastBuiltChartKey = '';
-  await buildPriceChartLive();
-  loadDashboardData();
+}
+
+// Refresh button: show stored data at once, then sync in the background and redraw only if bars arrived.
+async function syncAndReload() {
+  if (isSyncing) return;
+  isSyncing = true;
+  setRefreshButtonBusy(true);
+  try {
+    await Promise.all([buildPriceChartLive(true), loadLightDashboardData()]);
+    const addedBars = await syncNewBars();
+    if (addedBars > 0) await Promise.all([buildPriceChartLive(true), loadLightDashboardData()]);
+    loadHeavyDashboardData();
+  } finally {
+    setRefreshButtonBusy(false);
+    isSyncing = false;
+  }
 }
 
 // Opens a page and loads the anomaly data when that page is selected.
@@ -717,12 +791,21 @@ function goAndLoad(pageId, navElement) {
   if (pageId === 'anomaly') loadAnomalyData().catch(error => console.warn('Anomaly scan problem:', error.message));
 }
 
-// Starts the demo initialisation, then adds live data loading and its refresh timer.
+// Runs a refresh function on a timer, but skips it while the browser tab is hidden.
+function repeatWhileVisible(refreshFunction, intervalMs) {
+  setInterval(() => {
+    if (!document.hidden) refreshFunction();
+  }, intervalMs);
+}
+
+// Starts the demo initialisation, then adds live data loading and its refresh timers.
 function initAllLive() {
   originalInitAll();
   relabelForecastEndpoint();
-  loadDashboardData();
-  setInterval(loadDashboardData, DASHBOARD_REFRESH_MS);
+  loadLightDashboardData();
+  loadHeavyDashboardData();
+  repeatWhileVisible(loadLightDashboardData, DASHBOARD_REFRESH_MS);
+  repeatWhileVisible(loadHeavyDashboardData, HEAVY_REFRESH_MS);
 }
 
 window.buildPriceChart = buildPriceChartLive;

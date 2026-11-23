@@ -334,6 +334,7 @@ body{font-family:Inter,ui-sans-serif,system-ui,sans-serif} .shell{grid-template-
     <div class="nav" onclick="go('terminal',this)"><span class="nav-ico">▥</span>Trading Terminal <span class="nav-badge" style="background:#145b49">NEW</span></div>
     <div class="nav active" onclick="go('dashboard',this)"><span class="nav-ico">🏠</span>Dashboard</div>
     <div class="nav" onclick="go('forecast',this)"><span class="nav-ico">📈</span>EUR/USD Forecast</div>
+    <div class="nav" onclick="go('indicators',this)"><span class="nav-ico">📐</span>Indicator Lab <span class="nav-badge" style="background:#145b49">NEW</span></div>
     <div class="nav" onclick="go('anomaly',this)"><span class="nav-ico">🔍</span>Anomaly Detection<span class="nav-badge">3</span></div>
     <div class="nav" onclick="go('sentiment',this)"><span class="nav-ico">💬</span>Sentiment & Pump</div>
     <div class="sb-sec">Platform</div>
@@ -470,6 +471,87 @@ body{font-family:Inter,ui-sans-serif,system-ui,sans-serif} .shell{grid-template-
         </div>
       </div>
     </section>
+
+    <section class="page" id="page-indicators">
+  <div class="ph">
+    <div>
+      <div class="pt">Indicator Lab <span class="source-pill">FMIP MODEL · LIVE API</span></div>
+      <div class="ps">Adaptive ATR trailing stop · Lorentzian ANN signal · P10/P50/P90 forecast band · EUR/USD hourly</div>
+    </div>
+    <div class="btn-row">
+      <select id="lab-bar-count" aria-label="Number of bars">
+        <option value="100">100 bars</option>
+        <option value="300" selected>300 bars</option>
+        <option value="600">600 bars</option>
+      </select>
+      <select id="lab-horizon" aria-label="Forecast band horizon">
+        <option value="1">1h band</option>
+        <option value="4" selected>4h band</option>
+        <option value="24">24h band</option>
+      </select>
+      <button class="btn btn-c" id="lab-refresh">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="g4">
+    <div class="kpi"><div class="kpi-top"><div class="kpi-label">Signal</div><div class="kpi-ico">🎯</div></div>
+      <div class="kpi-val" id="lab-kpi-signal">—</div><div class="kpi-sub" id="lab-kpi-signal-sub">Waiting for API</div></div>
+    <div class="kpi"><div class="kpi-top"><div class="kpi-label">Adaptive Stop</div><div class="kpi-ico">🛡️</div></div>
+      <div class="kpi-val" id="lab-kpi-stop">—</div><div class="kpi-sub" id="lab-kpi-stop-sub">&nbsp;</div></div>
+    <div class="kpi"><div class="kpi-top"><div class="kpi-label">Lorentzian Bias</div><div class="kpi-ico">🧠</div></div>
+      <div class="kpi-val" id="lab-kpi-ann">—</div><div class="kpi-sub" id="lab-kpi-ann-sub">&nbsp;</div></div>
+    <div class="kpi"><div class="kpi-top"><div class="kpi-label">Trading Edge</div><div class="kpi-ico">⚖️</div></div>
+      <div class="kpi-val" id="lab-kpi-edge" style="font-size:18px">—</div><div class="kpi-sub" id="lab-kpi-edge-sub">&nbsp;</div></div>
+  </div>
+
+  <div class="card c-cyan" style="padding:14px">
+    <div class="ch" style="flex-wrap:wrap;gap:10px">
+      <div class="ct">📐 EUR/USD with FMIP indicators</div>
+      <div class="lab-toggles">
+        <label class="lab-toggle"><input type="checkbox" id="lab-show-stop" checked><span style="color:#16c784">━</span> Adaptive stop</label>
+        <label class="lab-toggle"><input type="checkbox" id="lab-show-kernel" checked><span style="color:#FFD700">━</span> Lorentzian kernel</label>
+        <label class="lab-toggle"><input type="checkbox" id="lab-show-stop-flips" checked><span style="color:#38bdf8">▲</span> Stop flips</label>
+        <label class="lab-toggle"><input type="checkbox" id="lab-show-ann-flips" checked><span style="color:#FFD700">▲</span> ANN flips</label>
+        <label class="lab-toggle"><input type="checkbox" id="lab-show-band" checked><span style="color:#38bdf8">┅</span> Forecast band</label>
+      </div>
+    </div>
+    <div id="lab-chart"><div style="padding:20px;color:#8995a8">Open this page to load the chart…</div></div>
+    <div class="status-line" id="lab-status" style="margin-top:8px">Waiting for forecast API…</div>
+  </div>
+
+  <div class="g2">
+    <div class="card c-green">
+      <div class="ch"><div class="ct">🛡️ Adaptive ATR Trailing Stop</div></div>
+      <div class="lab-kv"><span>Trend</span><strong id="lab-stop-trend">—</strong></div>
+      <div class="lab-kv"><span>Stop level</span><strong id="lab-stop-level">—</strong></div>
+      <div class="lab-kv"><span>Distance from price</span><strong id="lab-stop-distance">—</strong></div>
+      <div class="lab-kv"><span>ATR</span><strong id="lab-stop-atr">—</strong></div>
+      <div class="lab-kv"><span>Key multiplier</span><strong id="lab-stop-key">—</strong></div>
+      <div class="lab-kv"><span>Flip on last bar</span><strong id="lab-stop-flip">—</strong></div>
+    </div>
+    <div class="card c-gold">
+      <div class="ch"><div class="ct">🧠 Lorentzian ANN Signal</div></div>
+      <div class="lab-kv"><span>Bias</span><strong id="lab-ann-bias">—</strong></div>
+      <div class="lab-kv"><span>Neighbour-vote confidence</span><strong id="lab-ann-confidence">—</strong></div>
+      <div class="lab-kv"><span>Kernel trend estimate</span><strong id="lab-ann-kernel">—</strong></div>
+      <div class="lab-kv"><span>Flip on last bar</span><strong id="lab-ann-flip">—</strong></div>
+      <div class="lab-kv"><span>Fixed-hold exit</span><strong id="lab-ann-exit">—</strong></div>
+      <div class="lab-kv"><span>Skill established</span><strong id="lab-ann-skill">—</strong></div>
+    </div>
+  </div>
+
+  <div class="card c-purple">
+    <div class="ch"><div class="ct">🎯 Forecast Bands</div><span class="source-pill">80% INTERVAL</span></div>
+    <div class="terminal-table-wrap">
+      <table class="terminal-table">
+        <thead><tr><th>HORIZON</th><th>P10</th><th>P50</th><th>P90</th><th>WIDTH (PIPS)</th><th>MODEL</th></tr></thead>
+        <tbody id="lab-forecast-rows"><tr><td colspan="6">No data yet.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="status-line">Research prototype, not trading advice. Backtests with transaction costs showed no tradable edge (edge_verified = false). The bands are calibrated uncertainty ranges, not price targets.</p>
+</section>
 
     <!-- ════════ FORECAST ════════ -->
     <section class="page" id="page-forecast">
@@ -1442,5 +1524,17 @@ function toggleDashboardChartFullscreen(){
 window.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('dashboard-live-card').classList.remove('dashboard-chart-expanded');});
 loadDashboardChart();
 </script>
+
+<script src="/ui/static/js/paperTrading.js"></script>
+<style>
+#lab-chart{height:480px;min-height:320px;background:#111823;border:1px solid #263445;border-radius:8px;overflow:hidden}
+.lab-toggles{display:flex;gap:14px;flex-wrap:wrap}
+.lab-toggle{display:flex;align-items:center;gap:5px;font-size:12px;color:#cbd5e1;cursor:pointer}
+.lab-kv{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(36,46,59,.6);font-size:12px;color:#a5b4c6}
+.lab-kv:last-child{border-bottom:none}
+.lab-kv strong{color:#e2e8f0;font-family:ui-monospace,monospace}
+@media(max-width:900px){#lab-chart{height:340px}}
+</style>
+<script src="/ui/static/js/fmipIndicators.js"></script>
 </body>
 </html>

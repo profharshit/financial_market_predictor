@@ -43,6 +43,8 @@ from inference_engine import BarRejected, PredictionEngine
 from store import Store
 from fastapi.staticfiles import StaticFiles
 
+import paper_trading
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("FMP_MODEL_PATH", os.path.join(HERE, "../models/eurusd_price_model.joblib"))
@@ -161,8 +163,10 @@ app = FastAPI(title="EUR/USD Price Forecast + Adaptive Trailing Stop API", versi
               description="Probabilistic price bands (10/50/90th percentile) for 1h/4h/24h ahead, "
                           "a volatility-adaptive ratcheting stop-loss, and a live forward-test scorecard.")
 app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_methods=["GET", "POST"],
-                   allow_headers=["Content-Type", "X-API-Key"])
+                   allow_headers=["Content-Type", "X-API-Key", "X-Paper-Token"])
 app.mount("/ui/static", StaticFiles(directory=os.path.join(HERE, "../ui/static")), name="ui-static")
+paper_trading.connect(state)
+app.include_router(paper_trading.router)
 
 
 def require_key(x_api_key: Optional[str] = Header(None)):
