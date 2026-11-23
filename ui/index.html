@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FMIP — Financial Market Intelligence Platform</title>
+<title>FMIP PRO — Market Intelligence Terminal</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
@@ -252,6 +252,38 @@ canvas{display:block;width:100%!important}
 /* ═══ API RESPONSE CARD ═══ */
 .api-response{background:#020810;border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11px;line-height:1.7;margin-top:10px;display:none}
 .json-key{color:var(--cyan)}.json-str{color:var(--green)}.json-num{color:var(--orange)}.json-bool{color:var(--purple)}
+
+/* FMIP PRO · institutional terminal layer */
+:root{--bg:#080b11;--bg2:#0e131c;--bg3:#121a25;--card:#111823;--border:#242e3b;--border2:#344253;--cyan:#38bdf8;--purple:#818cf8;--green:#16c784;--red:#f05262;--light:#cbd5e1;--mid:#8995a8;--dim:#64748b;--orange:#f59e0b}
+body{font-family:Inter,ui-sans-serif,system-ui,sans-serif} .shell{grid-template-columns:222px minmax(0,1fr)}
+.topbar,.sidebar{background:#0d121b}.card,.kpi{border-radius:12px;box-shadow:0 3px 16px rgba(0,0,0,.09)}
+.nav{border-radius:0 7px 7px 0;margin-right:9px}.main{background:#080b11;padding:22px}
+.demo-label,.source-pill{font-size:10px;color:#fbbf24;border:1px solid #805b25;background:#322817;border-radius:5px;padding:3px 7px;vertical-align:middle;font-weight:600;letter-spacing:.2px}
+.terminal-top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.terminal-search{display:flex;gap:8px;align-items:center;flex:1;min-width:230px;max-width:530px}
+.terminal-search input,.trade-input,.trade-select{background:#0b111a;color:#e2e8f0;border:1px solid #344253;border-radius:8px;padding:10px 12px;width:100%;font:inherit;outline:none}
+.terminal-search input:focus,.trade-input:focus{border-color:#38bdf8}
+.terminal-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:14px;min-height:670px}
+.tv-panel{padding:0;overflow:hidden;min-width:0}.tv-toolbar{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.tv-frame{height:600px;min-height:400px}.tv-frame iframe{width:100%;height:100%;border:0}.tv-panel.expanded{position:fixed;inset:12px;z-index:110;display:flex;flex-direction:column;box-shadow:0 0 0 100vmax rgba(0,0,0,.85)}.tv-panel.expanded .tv-frame{flex:1;height:auto}
+.trade-panel{display:flex;flex-direction:column;gap:13px}.trade-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px}.trade-switch button{padding:12px;border-radius:8px;font-weight:700;border:1px solid #344253;cursor:pointer;background:#17202d;color:#aab7c8}.trade-switch .buy.selected{background:#0b4a36;border-color:#16c784;color:#7ef2c0}.trade-switch .sell.selected{background:#54202b;border-color:#f05262;color:#ffb2bd}
+.trade-label{font-size:11px;color:#93a4b8;display:block;margin-bottom:5px;font-weight:600}.trade-kv{display:flex;justify-content:space-between;gap:10px;color:#a5b4c6;font-size:12px}.trade-kv strong{color:#e2e8f0;font-family:ui-monospace,monospace}.trade-submit{width:100%;padding:12px;border:0;border-radius:8px;background:#16c784;color:#06140e;font-weight:800;cursor:pointer}.trade-submit.sell{background:#f05262;color:#fff}
+.terminal-table-wrap{overflow:auto}.terminal-table{min-width:620px}.terminal-table td{padding:11px 8px}.terminal-table th{padding:8px}.terminal-table button{background:#17283b;border:1px solid #344253;color:#93c5fd;border-radius:6px;padding:5px 9px;cursor:pointer}
+.market-chip{padding:6px 10px;border:1px solid #344253;background:#131c29;color:#d5deea;border-radius:7px;cursor:pointer;font-size:11px}.market-chip:hover{border-color:#38bdf8}
+.status-line{font-size:11px;color:#9ca3af;line-height:1.55}.trade-panel .card{padding:15px}.watch-items{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:1100px){.terminal-layout{grid-template-columns:1fr}.trade-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.shell{grid-template-columns:1fr}.sidebar{display:none}.main{padding:12px}.trade-panel{display:flex}.tv-frame{height:460px}.terminal-top{align-items:stretch}.g4,.g3,.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.row{flex-wrap:wrap}}
+
+/* FMIP PRO v2 · trading workspace usability */
+.pro-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.pro-stat{background:#111823;border:1px solid #273446;border-radius:12px;padding:15px}
+.pro-stat small{display:block;color:#94a3b8;font-size:11px;margin-bottom:8px}.pro-stat strong{color:#f8fafc;font-size:22px;font-family:ui-monospace,monospace}.pro-stat .detail{font-size:10px;color:#64748b;margin-top:6px}
+.pro-risk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.pro-risk label{font-size:11px;color:#94a3b8;display:block;margin-bottom:5px}
+.pro-risk input{width:100%;background:#0b111a;border:1px solid #344253;color:white;border-radius:7px;padding:9px}
+.pro-risk-results{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.pro-risk-results div{background:#0b111a;border:1px solid #263446;border-radius:8px;padding:10px}.pro-risk-results small{color:#94a3b8;display:block;font-size:10px}.pro-risk-results strong{color:#e2e8f0;font-size:14px}
+.pro-quick{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.pro-search-hint{color:#94a3b8;font-size:11px}
+.pro-panel-tabs{display:flex;gap:6px;flex-wrap:wrap}.pro-panel-tabs button{background:#131e2d;color:#b6c6d9;border:1px solid #304156;border-radius:6px;padding:7px 12px;cursor:pointer}.pro-panel-tabs button.active{border-color:#38bdf8;color:#7dd3fc}
+.pro-empty{color:#94a3b8;font-size:12px;padding:15px}.pro-status{font-size:11px;color:#eab308}
+@media(max-width:850px){.pro-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pro-risk-results{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -259,14 +291,14 @@ canvas{display:block;width:100%!important}
 <!-- ═══════════ AUTH MODAL ═══════════ -->
 <div class="modal-bg open" id="auth-modal">
   <div class="modal">
-    <div class="modal-close" onclick="closeAuth()">✕</div>
+    <div class="modal-close" onclick="closeAuth()" title="Continue in demo mode">✕</div>
     <h3 id="auth-title">🔐 Sign in to FMIP</h3>
     <div class="field"><label>EMAIL</label><input id="auth-email" type="email" placeholder="analyst@fmip.ai" value="goku@fmip.ai"></div>
     <div class="field"><label>PASSWORD</label><input id="auth-pass" type="password" placeholder="••••••••" value="••••••••"></div>
     <div id="auth-name-wrap" class="field" style="display:none"><label>FULL NAME</label><input id="auth-name" type="text" placeholder="Your name"></div>
     <div id="auth-feedback" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:6px"></div>
     <button class="btn btn-solid" style="width:100%;justify-content:center;padding:9px" onclick="doAuth()">Sign In</button>
-    <div class="auth-switch">Don't have an account? <span onclick="toggleAuth()">Register</span></div>
+    <div class="auth-switch">Don't have an account? <span onclick="toggleAuth()">Register</span></div><p style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center">Demo login: demo@fmip.ai / demo<br>Frontend-only authentication is not secure.</p>
   </div>
 </div>
 
@@ -277,10 +309,10 @@ canvas{display:block;width:100%!important}
   <header class="topbar">
     <div class="logo">
       <div class="logo-icon">📊</div>
-      <span>FMIP</span>
+      <span>FMIP <span style="color:#9ca3af;font-size:10px;letter-spacing:1.5px">PRO</span></span>
     </div>
     <div class="tb-sep"></div>
-    <div class="ticker">
+    <div class="ticker" title="Ticker includes simulated values; do not rely on these as live market quotes">
       <div class="tick"><span class="t-label">EUR/USD</span><span class="t-val" id="t0">1.0847</span><span class="t-chg up" id="c0">+0.12%</span></div>
       <div class="tick"><span class="t-label">GBP/USD</span><span class="t-val" id="t1">1.2683</span><span class="t-chg down" id="c1">−0.08%</span></div>
       <div class="tick"><span class="t-label">NIFTY 50</span><span class="t-val" id="t2">24,312</span><span class="t-chg up" id="c2">+0.34%</span></div>
@@ -290,7 +322,7 @@ canvas{display:block;width:100%!important}
       <div class="tick"><span class="t-label">ETH/USDT</span><span class="t-val" id="t6">—</span><span class="t-chg" id="c6">LIVE</span></div>
     </div>
     <div class="tb-right">
-      <div class="live-dot"><div class="dot"></div>Live</div>
+      <div class="live-dot" title="Some data in this application is simulated. TradingView provides third-party market charts."><div class="dot" style="background:#f59e0b;box-shadow:none"></div>Mixed / Demo</div>
       <div class="tb-sep"></div>
       <div class="avatar" id="user-avatar">GK</div>
     </div>
@@ -299,6 +331,7 @@ canvas{display:block;width:100%!important}
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="sb-sec">Main</div>
+    <div class="nav" onclick="go('terminal',this)"><span class="nav-ico">▥</span>Trading Terminal <span class="nav-badge" style="background:#145b49">NEW</span></div>
     <div class="nav active" onclick="go('dashboard',this)"><span class="nav-ico">🏠</span>Dashboard</div>
     <div class="nav" onclick="go('forecast',this)"><span class="nav-ico">📈</span>EUR/USD Forecast</div>
     <div class="nav" onclick="go('anomaly',this)"><span class="nav-ico">🔍</span>Anomaly Detection<span class="nav-badge">3</span></div>
@@ -309,23 +342,61 @@ canvas{display:block;width:100%!important}
     <div class="nav" onclick="go('logs',this)"><span class="nav-ico">📋</span>Audit Logs</div>
     <div class="nav" onclick="go('settings',this)"><span class="nav-ico">⚙️</span>Settings</div>
     <div class="sb-bottom">
-      <div class="version">v1.0.0-beta · Python · FastAPI</div>
+      <div class="version">FMIP PRO · Frontend demonstration<br>Backend not connected</div>
     </div>
   </nav>
 
   <!-- MAIN -->
   <main class="main">
 
+
+<section class="page" id="page-terminal">
+  <div class="terminal-top"><div><div class="pt">Trading Terminal <span class="demo-label">PAPER TRADING</span></div><div class="ps">TradingView market chart · local virtual portfolio · no real orders</div></div>
+    <div class="terminal-search"><input id="market-search" aria-label="Search symbol" placeholder="Search: NASDAQ:AAPL, NSE:RELIANCE, BINANCE:BTCUSDT, FX:EURUSD" autocomplete="off"><button class="btn btn-solid" onclick="searchMarket()">Load</button></div>
+  </div>
+  <div class="card" style="padding:10px 14px"><div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:#94a3b8;margin-right:4px">POPULAR</span>
+    <button class="market-chip" onclick="setMarket('NASDAQ:AAPL')">AAPL</button><button class="market-chip" onclick="setMarket('NASDAQ:NVDA')">NVDA</button><button class="market-chip" onclick="setMarket('NSE:RELIANCE')">RELIANCE</button><button class="market-chip" onclick="setMarket('NSE:NIFTY')">NIFTY</button><button class="market-chip" onclick="setMarket('BINANCE:BTCUSDT')">BTC/USDT</button><button class="market-chip" onclick="setMarket('BINANCE:ETHUSDT')">ETH/USDT</button><button class="market-chip" onclick="setMarket('FX:EURUSD')">EUR/USD</button><button class="market-chip" onclick="setMarket('TVC:GOLD')">GOLD</button>
+    <span class="source-pill" style="margin-left:auto">TradingView third-party data</span></div></div>
+  <div class="pro-stat-grid" aria-label="Virtual portfolio summary">
+    <div class="pro-stat"><small>Virtual cash</small><strong id="pro-cash">$100,000.00</strong><div class="detail">Local simulation · USD accounting</div></div>
+    <div class="pro-stat"><small>Open positions</small><strong id="pro-positions">0</strong><div class="detail">Long-only paper holdings</div></div>
+    <div class="pro-stat"><small>Realized P&amp;L</small><strong id="pro-realized">$0.00</strong><div class="detail">Based on manually entered fills</div></div>
+    <div class="pro-stat"><small>Market data connection</small><strong style="font-size:15px;color:#fbbf24">EXTERNAL</strong><div class="detail">TradingView chart · prices not accessible to order ticket</div></div>
+  </div>
+  <div class="terminal-layout"><div class="card tv-panel" id="tv-panel"><div class="tv-toolbar"><div><strong id="market-title" style="color:white;font-size:15px">NASDAQ:AAPL</strong><div class="status-line">TradingView interactive chart · symbol search and drawing tools available in widget</div></div><div style="display:flex;gap:6px"><button class="btn btn-c" onclick="toggleTvFullscreen()">⛶ Fullscreen</button><button class="btn btn-p" onclick="setMarket(currentMarket)">↻ Reload</button></div></div><div class="tv-frame" id="tradingview-chart"><div style="padding:25px">Sign in to load the market chart.</div></div></div>
+  <div class="trade-panel">
+    <div class="card"><div class="ch"><div class="ct">Order ticket</div><span class="source-pill">SIMULATED</span></div><div class="trade-switch"><button class="buy selected" id="order-buy" onclick="setOrderSide('buy')">BUY</button><button class="sell" id="order-sell" onclick="setOrderSide('sell')">SELL</button></div>
+      <div style="margin-top:12px"><label class="trade-label">Order type</label><select class="trade-select" id="order-type" onchange="recalcOrder()"><option value="market">Market (manual reference price)</option><option value="limit">Limit reference (instant demo fill)</option></select></div>
+      <div style="margin-top:12px"><label class="trade-label">Reference / limit price (USD equivalent, manual)</label><input class="trade-input" type="number" min="0.00000001" step="any" id="order-price" value="100" oninput="recalcOrder()"></div>
+      <div style="margin-top:12px"><label class="trade-label">Quantity (units)</label><input class="trade-input" type="number" min="0.00000001" step="any" id="order-qty" value="1" oninput="recalcOrder()"></div>
+      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label class="trade-label">Stop loss (optional)</label><input class="trade-input" type="number" step="any" id="order-sl" placeholder="—" oninput="recalcOrder()"></div><div><label class="trade-label">Take profit (optional)</label><input class="trade-input" type="number" step="any" id="order-tp" placeholder="—" oninput="recalcOrder()"></div></div>
+      <div style="margin-top:14px;display:grid;gap:9px"><div class="trade-kv"><span>Estimated notional</span><strong id="order-notional">$100.00</strong></div><div class="trade-kv"><span>Risk / reward</span><strong id="order-rr">—</strong></div><div class="trade-kv"><span>Virtual cash</span><strong id="order-cash">$100,000.00</strong></div></div>
+      <button class="trade-submit" id="trade-submit" style="margin-top:14px" onclick="placePaperOrder()">Place simulated BUY</button><div class="status-line" id="trade-feedback" style="margin-top:10px">Demo orders use the price you enter, not TradingView quotes. No brokerage connection.</div>
+    </div>
+    <div class="card" id="risk-calculator"><div class="ch"><div class="ct">Position sizing</div><span class="source-pill">MANUAL CALCULATOR</span></div>
+      <div class="pro-risk"><div><label for="risk-balance">Account size ($)</label><input id="risk-balance" type="number" min="1" step="any" value="100000" oninput="calculateRisk()"></div><div><label for="risk-percent">Risk per trade (%)</label><input id="risk-percent" type="number" min="0.1" max="100" step="0.1" value="1" oninput="calculateRisk()"></div><div><label for="risk-entry">Entry price</label><input id="risk-entry" type="number" min="0" step="any" value="100" oninput="calculateRisk()"></div><div><label for="risk-stop">Stop-loss price</label><input id="risk-stop" type="number" min="0" step="any" value="95" oninput="calculateRisk()"></div><div style="grid-column:1/-1"><label for="risk-target">Take-profit price</label><input id="risk-target" type="number" min="0" step="any" value="115" oninput="calculateRisk()"></div></div>
+      <div class="pro-risk-results"><div><small>Risk budget</small><strong id="risk-budget">$1,000</strong></div><div><small>Max units</small><strong id="risk-units">200</strong></div><div><small>Reward : risk</small><strong id="risk-ratio">3.00 : 1</strong></div></div>
+      <div class="status-line" id="risk-warning" style="margin-top:9px">Illustrative; excludes slippage, fees and leverage.</div><button class="btn btn-c" style="margin-top:10px" onclick="applyRiskToOrder()">Use size in order ticket</button>
+    </div>
+    <div class="card"><div class="ch"><div class="ct">Watchlist</div><button class="btn btn-c" onclick="addWatch()">+ Add</button></div><div class="watch-items" id="watch-items"></div><p class="status-line" style="margin-top:10px">Click a symbol to load its chart. Saved in this browser.</p></div>
+    <div class="card"><div class="ch"><div class="ct">Virtual portfolio</div><span class="source-pill">LOCAL ONLY</span></div><div class="trade-kv"><span>Available cash</span><strong id="portfolio-cash">$100,000.00</strong></div><div class="trade-kv" style="margin-top:10px"><span>Open positions</span><strong id="portfolio-count">0</strong></div><p class="status-line" style="margin-top:12px">Positions are recorded at manually entered prices. No live P&L or cross-currency conversion.</p><button class="btn btn-p" style="margin-top:10px" onclick="resetPaperPortfolio()">Reset demo portfolio</button></div>
+  </div></div>
+  <div class="card"><div class="ch"><div class="ct">Open paper positions <span class="demo-label">COST BASIS ONLY</span></div></div><div class="terminal-table-wrap"><table class="terminal-table"><thead><tr><th>SYMBOL</th><th>UNITS</th><th>AVERAGE ENTRY</th><th>INVESTED COST</th><th>VALUATION</th></tr></thead><tbody id="pro-holdings"><tr><td colspan="5">No open positions.</td></tr></tbody></table></div><p class="status-line" style="margin-top:10px">No live unrealized P&amp;L is shown: TradingView's embedded chart does not provide quotes to this frontend.</p></div>
+  <div class="card"><div class="ch"><div class="ct">Positions and orders <span class="demo-label">LOCAL SIMULATION</span></div><button class="btn btn-c" onclick="exportPaperCsv()">↓ Export CSV</button></div><div class="terminal-table-wrap"><table class="terminal-table"><thead><tr><th>TIME</th><th>SYMBOL</th><th>SIDE</th><th>TYPE</th><th>QTY</th><th>MANUAL PRICE</th><th>STATUS</th></tr></thead><tbody id="paper-orders"><tr><td colspan="7" style="color:#94a3b8">No paper orders yet.</td></tr></tbody></table></div></div>
+  <p class="status-line">Market data is displayed by TradingView under its own data coverage, delays and exchange permissions. Chart symbols are not guaranteed to exist. FMIP analytics, forecasts, anomaly alerts and API metrics elsewhere on this page remain illustrative until connected to your backend. The login is a frontend demo, not production authentication.</p>
+</section>
+
     <!-- ════════ DASHBOARD ════════ -->
     <section class="page active" id="page-dashboard">
       <div class="ph">
-        <div><div class="pt">Overview</div><div class="ps">Financial Market Intelligence Platform · Live</div></div>
+        <div><div class="pt">Overview</div><div class="ps">Financial Market Intelligence Platform · Demo analytics / external market chart</div></div>
         <div class="btn-row">
           <button class="btn btn-c" onclick="refreshDash()">↻ Refresh</button>
           <button class="btn btn-p">Export Report</button>
         </div>
       </div>
 
+      <div class="card" style="display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;background:linear-gradient(110deg,#132033,#111823)"><div><div class="ct" style="font-size:16px">FMIP Trading Workspace <span class="demo-label">PAPER MODE</span></div><p class="status-line" style="margin-top:5px">Interactive TradingView chart, asset search, risk sizing, virtual positions and order history.</p></div><button class="btn btn-solid" onclick="go('terminal',document.querySelector('.nav[onclick*=terminal]'))">Open Trading Terminal →</button></div>
       <div class="g4">
         <div class="kpi c-cyan"><div class="kpi-stripe" style="background:var(--cyan)"></div>
           <div class="kpi-top"><div class="kpi-label">Forecast Accuracy</div><div class="kpi-ico">📈</div></div>
@@ -346,26 +417,21 @@ canvas{display:block;width:100%!important}
       </div>
 
       <div class="row">
-        <div class="card c-cyan f1">
-          <div class="ch"><div class="price-chart-head"><div class="ct" id="priceAssetTitle">EUR/USD</div><div class="price-live-meta"><span class="price-live-dot"></span><span id="priceFeedStatus">LIVE</span><span id="priceLast">1.08470</span></div><span class="price-pattern" id="pricePattern">SCANNING</span></div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="tog asset-tog"><button class="tog-btn active" onclick="switchAsset(this,'EURUSD')">EUR/USD</button><button class="tog-btn" onclick="switchAsset(this,'BTCUSDT')">BTC</button><button class="tog-btn" onclick="switchAsset(this,'ETHUSDT')">ETH</button></div>
-              <div class="tog"><button class="tog-btn active" onclick="switchTog(this,'priceChart')">1H</button><button class="tog-btn" onclick="switchTog(this,'priceChart')">4H</button><button class="tog-btn" onclick="switchTog(this,'priceChart')">1D</button></div>
-              <div class="chart-actions">
-                <button class="chart-action" type="button" title="Minimize chart" aria-label="Minimize chart" onclick="togglePriceChartSize('min')">−</button>
-                <button class="chart-action" type="button" title="Maximize chart" aria-label="Maximize chart" onclick="togglePriceChartSize('max')">⛶</button>
-              </div>
-            </div>
-          </div>
-          <div class="price-chart-wrap" id="priceChartWrap"><div id="priceChart"></div></div>
-          <div class="trade-signal-bar" id="tradeSignalBar">
-            <div class="trade-signal-main"><span class="signal-dot wait" id="signalDot"></span><span class="signal-label">SIGNAL</span><strong id="tradeSignal">WAIT</strong><span class="signal-confidence" id="signalConfidence">—</span></div>
-            <div class="trade-levels"><span>ENTRY <b id="signalEntry">—</b></span><span>SL <b id="signalSL">—</b></span><span>TARGET <b id="signalTP">—</b></span></div>
-            <div class="signal-note" id="signalNote">Waiting for trend + candle confirmation</div>
-          </div>
+        <div class="card c-cyan f1" id="dashboard-live-card" style="min-width:0;padding:14px">
+          <div class="ch" style="flex-wrap:wrap;gap:10px"><div><div class="ct">📈 Live Market Chart <span class="source-pill">TRADINGVIEW · EXTERNAL</span></div><div class="status-line">Real market chart from TradingView; exchange data may be delayed. AI signals elsewhere are demo.</div></div>
+          <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+            <input id="dashboard-symbol" aria-label="Chart symbol" value="FX:EURUSD" placeholder="EXCHANGE:SYMBOL" style="width:160px;background:#101827;border:1px solid #344253;color:#f8fafc;border-radius:6px;padding:8px" onkeydown="if(event.key==='Enter')loadDashboardChart()">
+            <button class="btn btn-c" onclick="loadDashboardChart()">Search</button>
+            <select id="dashboard-interval" aria-label="Chart timeframe" onchange="loadDashboardChart()"><option value="15">15m</option><option value="60" selected>1H</option><option value="240">4H</option><option value="D">1D</option><option value="W">1W</option></select>
+            <button class="btn btn-p" onclick="loadDashboardChart()">↻ Refresh</button>
+            <button class="btn btn-c" onclick="toggleDashboardChartFullscreen()">⛶ Fullscreen</button>
+          </div></div>
+          <div id="dashboard-tv-chart" style="height:440px;min-height:300px;background:#101827;border:1px solid #263445;border-radius:8px;overflow:hidden"><div style="padding:20px">Loading TradingView chart…</div></div>
+          <div class="status-line" style="margin-top:9px">Popular: <button class="btn btn-p" onclick="dashboardQuickSymbol('FX:EURUSD')">EUR/USD</button> <button class="btn btn-p" onclick="dashboardQuickSymbol('BINANCE:BTCUSDT')">BTC</button> <button class="btn btn-p" onclick="dashboardQuickSymbol('NASDAQ:AAPL')">AAPL</button> <button class="btn btn-p" onclick="dashboardQuickSymbol('NSE:RELIANCE')">RELIANCE</button></div>
+          <div class="status-line" id="dashboard-chart-status" style="margin-top:8px">Third-party chart; requires internet access.</div>
         </div>
         <div class="card c-purple" style="width:264px;flex-shrink:0">
-          <div class="ch"><div class="ct">🎯 Next 1h Forecast</div><span class="badge b-cyan">P10/50/90</span></div>
+          <div class="ch"><div class="ct">🎯 Next 1h Forecast <span class="demo-label">DEMO</span></div><span class="badge b-cyan">P10/50/90</span></div>
           <div class="fc-band">
             <div class="fc-col" style="background:rgba(255,68,102,.08)"><div class="fc-lbl">P10</div><div class="fc-val" style="color:var(--red)">1.0821</div></div>
             <div class="fc-col" style="background:rgba(0,212,255,.13)"><div class="fc-lbl">P50</div><div class="fc-val" style="color:var(--cyan)">1.0852</div></div>
@@ -408,7 +474,7 @@ canvas{display:block;width:100%!important}
     <!-- ════════ FORECAST ════════ -->
     <section class="page" id="page-forecast">
       <div class="ph">
-        <div><div class="pt">EUR/USD Forecast</div><div class="ps">XGBoost quantile regression · 16,577 hourly bars trained</div></div>
+        <div><div class="pt">EUR/USD Forecast <span class="demo-label">DEMO MODEL OUTPUT</span></div><div class="ps">XGBoost quantile regression · 16,577 hourly bars trained</div></div>
         <div class="btn-row">
           <select onchange="buildForecastChart()"><option>1 Hour</option><option>4 Hours</option><option>24 Hours (Benchmark)</option></select>
           <button class="btn btn-solid" onclick="runPredict()">▶ Run /predict</button>
@@ -475,7 +541,7 @@ canvas{display:block;width:100%!important}
     <!-- ════════ ANOMALY ════════ -->
     <section class="page" id="page-anomaly">
       <div class="ph">
-        <div><div class="pt">Anomaly Detection</div><div class="ps">Isolation Forest · NSE OHLC + Volume · Historical analysis</div></div>
+        <div><div class="pt">Anomaly Detection <span class="demo-label">DEMO DATA</span></div><div class="ps">Isolation Forest · NSE OHLC + Volume · Historical analysis</div></div>
         <span class="badge b-orange" style="font-size:12px;padding:5px 12px;align-self:center">3 Anomalies Active</span>
       </div>
 
@@ -524,7 +590,7 @@ canvas{display:block;width:100%!important}
     <!-- ════════ SENTIMENT ════════ -->
     <section class="page" id="page-sentiment">
       <div class="ph">
-        <div><div class="pt">Sentiment & Pump-and-Dump</div><div class="ps">TF-IDF + LR · Random Forest · Social & chat signal analysis</div></div>
+        <div><div class="pt">Sentiment & Pump-and-Dump <span class="demo-label">DEMO DATA</span></div><div class="ps">TF-IDF + LR · Random Forest · Social & chat signal analysis</div></div>
         <span class="badge b-red" style="font-size:12px;padding:5px 12px;align-self:center">🚨 1 High-Confidence Signal</span>
       </div>
 
@@ -563,7 +629,7 @@ canvas{display:block;width:100%!important}
     <section class="page" id="page-api">
       <div class="ph">
         <div><div class="pt">API Gateway</div><div class="ps">FastAPI · Uvicorn · JWT-secured · OpenAPI docs available</div></div>
-        <span class="badge b-green" style="font-size:12px;padding:5px 12px;align-self:center">● Online</span>
+        <span class="badge b-gold" style="font-size:12px;padding:5px 12px;align-self:center">● Demo · Not connected</span>
       </div>
 
       <div class="g4">
@@ -694,7 +760,7 @@ function doAuth() {
     fb.textContent = 'Account created! Signing in…';
     setTimeout(() => launchDash(email), 800);
   } else {
-    if (USERS[email] === pass || pass.length >= 3) {
+    if (USERS[email] === pass) {
       fb.style.color = 'var(--green)';
       fb.textContent = 'Authenticating…';
       setTimeout(() => launchDash(email), 600);
@@ -714,7 +780,7 @@ function launchDash(email) {
 function closeAuth() {
   document.getElementById('auth-modal').classList.remove('open');
   document.getElementById('shell').style.display = '';
-  initAll();
+  if (!window.__fmipStarted) { window.__fmipStarted=true; initAll(); }
 }
 
 // ── NAV ──────────────────────────────────────────────────────────────────────
@@ -1258,10 +1324,10 @@ function refreshDash() {
 function runPredict() {
   const badge=document.getElementById('predict-status');
   const resp=document.getElementById('api-resp');
-  badge.textContent='Calling API…'; badge.className='badge b-gold';
+  badge.textContent='Simulating…'; badge.className='badge b-gold';
   resp.style.display='none';
   setTimeout(()=>{
-    badge.textContent='200 OK'; badge.className='badge b-green';
+    badge.textContent='DEMO RESPONSE'; badge.className='badge b-gold';
     resp.style.display='block';
   },900);
 }
@@ -1277,15 +1343,104 @@ function initAll() {
   buildHeatmap();
   buildTags();
   buildLogs();
-  setInterval(jitterTicker, 1800);
-  setInterval(()=>{
-    if (document.getElementById('page-dashboard').classList.contains('active')) buildPriceChart();
-  }, 9000);
+  // Demo ticker values are static; do not animate fabricated prices.
+  // setInterval(jitterTicker, 1800);
+  // Do not rebuild the chart periodically: it destroys the user's zoom and pan state.
+
 }
+
+
+// FMIP PRO Trading Terminal — browser-only paper trading, no real execution.
+let currentMarket='NASDAQ:AAPL', paperSide='buy';
+const fmipKey='fmip_pro_paper_v1', fmipWatchKey='fmip_pro_watch_v1';
+function getPaper(){try{const x=JSON.parse(localStorage.getItem(fmipKey));if(x && typeof x.cash==='number' && Array.isArray(x.orders))return x;}catch(e){}return {cash:100000,orders:[]};}
+function savePaper(p){localStorage.setItem(fmipKey,JSON.stringify(p));}
+function money(v){return '$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function escapeText(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function setMarket(symbol){
+  symbol=String(symbol||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(!/^[A-Z0-9._-]+:[A-Z0-9._/-]+$/.test(symbol)){document.getElementById('trade-feedback').textContent='Use EXCHANGE:SYMBOL (for example NASDAQ:AAPL or BINANCE:BTCUSDT).';return;}
+  currentMarket=symbol;document.getElementById('market-search').value=symbol;document.getElementById('market-title').textContent=symbol;
+  const holder=document.getElementById('tradingview-chart');holder.replaceChildren();
+  const iframe=document.createElement('iframe');iframe.title='TradingView interactive chart for '+symbol;iframe.loading='eager';iframe.allowFullscreen=true;
+  const params={symbol,interval:'60',timezone:'Etc/UTC',theme:'dark',style:'1',locale:'en',backgroundColor:'#111823',gridColor:'rgba(148,163,184,0.08)',hide_top_toolbar:false,hide_legend:false,save_image:true,calendar:false,hide_side_toolbar:false,allow_symbol_change:true,withdateranges:true,details:true,hotlist:true,studies:[],support_host:'https://www.tradingview.com'};
+  iframe.src='https://s.tradingview.com/widgetembed/?'+new URLSearchParams({symbol,interval:'60',theme:'dark',style:'1',locale:'en',toolbarbg:'#111823',hide_top_toolbar:'0',hide_side_toolbar:'0',allow_symbol_change:'1',save_image:'1',withdateranges:'1',studies:'[]'}).toString();
+  holder.appendChild(iframe);
+}
+function searchMarket(){setMarket(document.getElementById('market-search').value);}
+function toggleTvFullscreen(){const el=document.getElementById('tv-panel');el.classList.toggle('expanded');}
+function setOrderSide(side){paperSide=side;document.getElementById('order-buy').classList.toggle('selected',side==='buy');document.getElementById('order-sell').classList.toggle('selected',side==='sell');const b=document.getElementById('trade-submit');b.className='trade-submit'+(side==='sell'?' sell':'');b.textContent='Place simulated '+side.toUpperCase();recalcOrder();}
+function recalcOrder(){const price=Number(document.getElementById('order-price').value),qty=Number(document.getElementById('order-qty').value),sl=Number(document.getElementById('order-sl').value),tp=Number(document.getElementById('order-tp').value);document.getElementById('order-notional').textContent=price>0&&qty>0?money(price*qty):'—';document.getElementById('order-cash').textContent=money(getPaper().cash);document.getElementById('order-rr').textContent=sl>0&&tp>0&&price>0&&Math.abs(price-sl)>0?(Math.abs(tp-price)/Math.abs(price-sl)).toFixed(2)+':1':'—';}
+function placePaperOrder(){const price=Number(document.getElementById('order-price').value),qty=Number(document.getElementById('order-qty').value),type=document.getElementById('order-type').value,sl=Number(document.getElementById('order-sl').value)||null,tp=Number(document.getElementById('order-tp').value)||null;const fb=document.getElementById('trade-feedback');if(!Number.isFinite(price)||!Number.isFinite(qty)||price<=0||qty<=0){fb.textContent='Enter a valid positive price and quantity.';return;}const p=getPaper(),cost=price*qty;if(!Number.isFinite(cost)||cost>1e12){fb.textContent='Order size is invalid or too large.';return;}if(paperSide==='buy'&&cost>p.cash){fb.textContent='Insufficient virtual cash.';return;}if(paperSide==='sell'){const bought=p.orders.filter(o=>o.symbol===currentMarket).reduce((n,o)=>n+(o.side==='buy'?o.qty:-o.qty),0);if(qty>bought+1e-8){fb.textContent='Not enough paper units held to sell. Short selling is disabled.';return;}}
+  p.cash+=(paperSide==='buy'?-cost:cost);p.orders.unshift({time:new Date().toISOString(),symbol:currentMarket,side:paperSide,type,qty,price,sl,tp,status:'SIMULATED FILL'});savePaper(p);fb.textContent='Simulated '+paperSide.toUpperCase()+' recorded locally at your manually entered price. No real trade occurred.';renderPaper();}
+function renderPaper(){const p=getPaper();document.getElementById('portfolio-cash').textContent=money(p.cash);document.getElementById('order-cash').textContent=money(p.cash);const holdings={};p.orders.forEach(o=>{holdings[o.symbol]=(holdings[o.symbol]||0)+(o.side==='buy'?o.qty:-o.qty);});document.getElementById('portfolio-count').textContent=Object.values(holdings).filter(x=>x>1e-8).length;document.getElementById('paper-orders').innerHTML=p.orders.length?p.orders.slice(0,100).map(o=>'<tr><td>'+escapeText(new Date(o.time).toLocaleString())+'</td><td>'+escapeText(o.symbol)+'</td><td class="'+(o.side==='buy'?'up':'down')+'">'+o.side.toUpperCase()+'</td><td>'+escapeText(o.type)+'</td><td>'+o.qty+'</td><td>'+money(o.price)+'</td><td><span class="source-pill">DEMO FILL</span></td></tr>').join(''):'<tr><td colspan="7" style="color:#94a3b8">No paper orders yet.</td></tr>';}
+function resetPaperPortfolio(){if(confirm('Reset your local virtual cash and clear all simulated orders?')){localStorage.removeItem(fmipKey);renderPaper();}}
+function getWatch(){try{const a=JSON.parse(localStorage.getItem(fmipWatchKey));if(Array.isArray(a))return a;}catch(e){}return ['NASDAQ:AAPL','NSE:RELIANCE','BINANCE:BTCUSDT','FX:EURUSD'];}
+function addWatch(){const w=getWatch();if(!w.includes(currentMarket))w.push(currentMarket);localStorage.setItem(fmipWatchKey,JSON.stringify(w));renderWatch();}
+function removeWatch(sym){const w=getWatch().filter(x=>x!==sym);localStorage.setItem(fmipWatchKey,JSON.stringify(w));renderWatch();}
+function renderWatch(){const holder=document.getElementById('watch-items');holder.replaceChildren();getWatch().forEach(sym=>{const chip=document.createElement('span');chip.style.cssText='display:inline-flex;align-items:center;gap:4px;background:#182331;border:1px solid #344253;border-radius:6px;padding:4px';const a=document.createElement('button');a.className='market-chip';a.textContent=sym;a.onclick=()=>setMarket(sym);const x=document.createElement('button');x.textContent='×';x.title='Remove from watchlist';x.style.cssText='background:transparent;border:0;color:#94a3b8;cursor:pointer';x.onclick=()=>removeWatch(sym);chip.append(a,x);holder.appendChild(chip);});}
+function exportPaperCsv(){const rows=[['Time','Symbol','Side','Type','Quantity','Manual Price','Stop Loss','Take Profit','Status'],...getPaper().orders.map(o=>[o.time,o.symbol,o.side,o.type,o.qty,o.price,o.sl??'',o.tp??'',o.status])];const csv=rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='FMIP_Paper_Orders.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+const oldGo=go;go=function(id,el){oldGo(id,el);if(id==='terminal'){setTimeout(()=>{if(!document.querySelector('#tradingview-chart iframe'))setMarket(currentMarket);renderPaper();renderWatch();},50);}};
+document.getElementById('market-search').addEventListener('keydown',e=>{if(e.key==='Enter')searchMarket();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('tv-panel').classList.remove('expanded');});
+renderPaper();renderWatch();
+
+
+// FMIP PRO v2: risk sizing and cost-basis-only holdings. No market quotes are fabricated.
+function calculateRisk(){
+ const val=id=>Number(document.getElementById(id).value),b=val('risk-balance'),pct=val('risk-percent'),entry=val('risk-entry'),stop=val('risk-stop'),target=val('risk-target');
+ const valid=[b,pct,entry,stop,target].every(Number.isFinite)&&b>0&&pct>0&&pct<=100&&entry>0&&stop>=0&&target>0&&stop!==entry;
+ const budget=valid?b*pct/100:0,units=valid?budget/Math.abs(entry-stop):0,ratio=valid?Math.abs(target-entry)/Math.abs(entry-stop):0;
+ document.getElementById('risk-budget').textContent=valid?money(budget):'—';
+ document.getElementById('risk-units').textContent=valid?units.toLocaleString('en-US',{maximumFractionDigits:6}):'—';
+ document.getElementById('risk-ratio').textContent=valid?ratio.toFixed(2)+' : 1':'—';
+ document.getElementById('risk-warning').textContent=!valid?'Enter valid prices, risk and account size. Stop must differ from entry.':stop>=entry?'Warning: this is not a conventional long position stop below entry.':target<=entry?'Warning: target is not above entry for a long position.':units*entry>b?'Position exceeds available account size without leverage; use the lower affordable quantity.':'Sizing is illustrative, excludes slippage, fees, contract multipliers and currency conversion.';
+ return valid?{units,entry,stop,target,b}:null;
+}
+function applyRiskToOrder(){const x=calculateRisk();if(!x)return;const qty=Math.min(x.units,x.b/x.entry);document.getElementById('order-price').value=x.entry;document.getElementById('order-qty').value=qty.toFixed(6);document.getElementById('order-sl').value=x.stop;document.getElementById('order-tp').value=x.target;recalcOrder();document.getElementById('trade-feedback').textContent='Risk calculator values copied to simulated order. Review before placing; no real order will execute.';}
+function calculateHoldings(orders){const state={},ordered=[...orders].reverse();let realized=0;
+ for(const o of ordered){if(!o||!Number.isFinite(Number(o.qty))||!Number.isFinite(Number(o.price)))continue;const qty=Number(o.qty),price=Number(o.price);if(qty<=0||price<=0)continue;const h=state[o.symbol]||(state[o.symbol]={qty:0,cost:0});if(o.side==='buy'){h.qty+=qty;h.cost+=qty*price;}else if(o.side==='sell'&&h.qty>0){const sold=Math.min(qty,h.qty),average=h.cost/h.qty;realized+=(price-average)*sold;h.qty-=sold;h.cost=Math.max(0,h.cost-average*sold);if(h.qty<1e-8){h.qty=0;h.cost=0;}}}
+ return {state,realized};}
+function renderProMetrics(){const p=getPaper(),calc=calculateHoldings(p.orders);document.getElementById('pro-cash').textContent=money(p.cash);document.getElementById('pro-positions').textContent=Object.values(calc.state).filter(h=>h.qty>1e-8).length;const r=document.getElementById('pro-realized');r.textContent=money(calc.realized);r.style.color=calc.realized>=0?'#16c784':'#f05262';const rows=Object.entries(calc.state).filter(([,h])=>h.qty>1e-8);document.getElementById('pro-holdings').innerHTML=rows.length?rows.map(([sym,h])=>'<tr><td>'+escapeText(sym)+'</td><td>'+h.qty.toLocaleString('en-US',{maximumFractionDigits:8})+'</td><td>'+money(h.cost/h.qty)+'</td><td>'+money(h.cost)+'</td><td><span class="source-pill">NO LIVE QUOTE</span></td></tr>').join(''):'<tr><td colspan="5" class="pro-empty">No open paper positions.</td></tr>';}
+const fmipOldRenderPaper=renderPaper;
+renderPaper=function(){fmipOldRenderPaper();renderProMetrics();};
+calculateRisk();renderProMetrics();
 
 // allow pressing Enter on auth
 document.getElementById('auth-pass').addEventListener('keydown', e=> { if(e.key==='Enter') doAuth(); });
 </script>
-<script src="/ui/static/js/fmipLive.js"></script>
+<style>
+#dashboard-live-card.dashboard-chart-expanded{position:fixed!important;inset:12px!important;z-index:9999!important;width:auto!important;height:auto!important;background:#101827;display:flex;flex-direction:column;box-shadow:0 0 0 9999px rgba(0,0,0,.85)}
+#dashboard-live-card.dashboard-chart-expanded #dashboard-tv-chart{flex:1;height:auto!important}
+@media(max-width:900px){#dashboard-tv-chart{height:340px!important}#dashboard-live-card.dashboard-chart-expanded #dashboard-tv-chart{height:auto!important}}
+</style>
+<script>
+// Independent TradingView chart on the MAIN DASHBOARD (not just the terminal).
+function loadDashboardChart(){
+  const input=document.getElementById('dashboard-symbol');
+  const symbol=input.value.trim().toUpperCase().replace(/\s+/g,'');
+  const status=document.getElementById('dashboard-chart-status');
+  if(!/^[A-Z0-9._-]+:[A-Z0-9._/-]+$/.test(symbol)){
+    status.textContent='Enter EXCHANGE:SYMBOL, e.g. FX:EURUSD, NASDAQ:AAPL or BINANCE:BTCUSDT.';return;
+  }
+  input.value=symbol;
+  const interval=document.getElementById('dashboard-interval').value;
+  const frame=document.createElement('iframe');
+  frame.title='TradingView market chart for '+symbol;
+  frame.style.cssText='width:100%;height:100%;border:0;display:block';
+  frame.allowFullscreen=true;
+  frame.referrerPolicy='strict-origin-when-cross-origin';
+  frame.src='https://s.tradingview.com/widgetembed/?'+new URLSearchParams({symbol,interval,theme:'dark',style:'1',locale:'en',toolbarbg:'#101827',hide_top_toolbar:'0',hide_side_toolbar:'0',allow_symbol_change:'1',save_image:'1',withdateranges:'1',studies:'[]'}).toString();
+  document.getElementById('dashboard-tv-chart').replaceChildren(frame);
+  status.textContent='TradingView chart: '+symbol+' · '+interval+' interval. Feed may be delayed; paper orders do not use this chart’s prices.';
+}
+function dashboardQuickSymbol(symbol){document.getElementById('dashboard-symbol').value=symbol;loadDashboardChart();}
+function toggleDashboardChartFullscreen(){
+  const card=document.getElementById('dashboard-live-card');
+  card.classList.toggle('dashboard-chart-expanded');
+}
+window.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('dashboard-live-card').classList.remove('dashboard-chart-expanded');});
+loadDashboardChart();
+</script>
 </body>
 </html>
