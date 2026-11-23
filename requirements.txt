@@ -1,25 +1,55 @@
-# EUR/USD Price Forecaster - Project Dependencies
+# =============================================================================
+# FMIP - Financial Market Intelligence Platform
+# File location : financial-market-project/requirements.txt
+# Python        : 3.11 or newer (3.12 recommended)
 #
-# Install with:
+# Setup (run from the project root):
+#   python -m venv .venv
+#   .venv\Scripts\activate          (Windows)
+#   source .venv/bin/activate       (Mac / Linux)
+#   python -m pip install --upgrade pip
 #   pip install -r requirements.txt
 #
-# Or with --break-system-packages on Debian/Ubuntu with system Python:
-#   pip install -r requirements.txt --break-system-packages
+# Version ranges are used instead of exact pins so pip can pick builds
+# that exist for each teammate's Python version and operating system.
+# =============================================================================
 
-# --- data / ML (unchanged) ---
-pandas==3.0.5
-numpy==2.5.3
-dukascopy-python==4.0.1
-xgboost==3.4.1
-scikit-learn==1.9.1
-matplotlib==3.11.2
-mplfinance==0.12.10b0
-joblib==1.6.0
+# --- Data handling ---
+pandas>=2.2,<4
+numpy>=1.26,<3
+scipy>=1.13
 
-# --- added for the live API (versions verified in the build environment) ---
-scipy>=1.13          # binomial test in train_price_model.py
-fastapi==0.141.1
-uvicorn==0.53.0
-pydantic==2.13.5
-httpx>=0.27          # live_feed.py + FastAPI TestClient in smoke_test_api.py
-httpx2==2.13.1
+# --- Machine learning ---
+scikit-learn>=1.4
+xgboost>=2.0
+joblib>=1.3
+
+# --- Charts and plots ---
+matplotlib>=3.8
+seaborn>=0.13
+mplfinance>=0.12.10b0
+
+# --- Text processing (sentiment / pump-and-dump module) ---
+nltk>=3.8
+
+# --- Market data sources ---
+dukascopy-python>=4.0
+jugaad-data>=0.29
+
+# --- Forecast API (src/serve_api.py) ---
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+httpx>=0.27
+
+# --- NSE anomaly detection web app (app.py) ---
+Flask>=3.0
+
+# --- Security API (auth, JWT, encryption, rate limiting) ---
+SQLAlchemy>=2.0
+PyJWT>=2.8
+pwdlib[argon2]>=0.2
+cryptography>=42.0
+slowapi>=0.1.9
+python-dotenv>=1.0
