@@ -1,10 +1,15 @@
-// FILE: financial-market-project/ui/static/js/fmipIndicators.js
-// (new file, same folder as fmipLive.js; served automatically at /ui/static/js/fmipIndicators.js)
+// FILE PATH: financial-market-project/ui/static/js/fmipIndicators.js
+// ACTION: REPLACE the existing file with this one (same folder as fmipLive.js and paperTrading.js).
+// No change is needed in index.html for this file; it is already loaded by the last <script> tag.
 
 const LAB_API_URL = window.location.protocol.startsWith('http') ? window.location.origin : 'http://127.0.0.1:8000';
-const LAB_API_KEY = window.FMIP_API_KEY || localStorage.getItem('fmipApiKey') || '';
-const LAB_REQUEST_TIMEOUT_MS = 15000;
+const LAB_REQUEST_TIMEOUT_MS = 30000;
+const LAB_SYNC_TIMEOUT_MS = 90000;
 const LAB_REFRESH_MS = 60000;
+const SYNC_AFTER_HOURS = 2.5;
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const STALE_WARNING_HOURS = 3;
+const MILLISECONDS_PER_HOUR = 3600000;
 const LAB_COLORS = {
   stopUp: '#16c784', stopDown: '#f05262', kernel: '#FFD700',
   stopMarker: '#38bdf8', annMarker: '#FFD700',
@@ -23,23 +28,90 @@ let labRows = [];
 let labLatestPrediction = null;
 let labRefreshTimer = null;
 let labFitNextDraw = true;
+let isLabLoading = false;
+let lastSyncTime = 0;
 
-// ───────────────────────── HTTP + SMALL HELPERS ─────────────────────────
+// ───────────────────────── HTTP + ERROR HANDLING ─────────────────────────
 
-// One place for HTTP so every call sends the key and times out the same way.
-async function callForecastApi(path) {
-  const headers = LAB_API_KEY ? { 'X-API-Key': LAB_API_KEY } : {};
+// Reads the API key at call time because the server may inject it after this script loads.
+function getLabApiKey() {
+  return window.FMIP_API_KEY || localStorage.getItem('fmipApiKey') || '';
+}
+
+// Adds the key header only when a key exists, so open servers still work.
+function buildLabHeaders() {
+  const apiKey = getLabApiKey();
+  return apiKey ? { 'X-API-Key': apiKey } : {};
+}
+
+// Creates an error that remembers if it was a network, timeout or HTTP problem.
+function makeLabError(kind, status, message) {
+  const error = new Error(message);
+  error.kind = kind;
+  error.status = status;
+  return error;
+}
+
+// Keeps HTTP errors as they are and labels everything else as timeout or network trouble.
+function classifyFetchError(error, path) {
+  if (error.kind) return error;
+  if (error.name === 'AbortError') return makeLabError('timeout', 0, `${path} took too long to answer`);
+  return makeLabError('network', 0, `${path} could not be reached`);
+}
+
+// Reads the server's own error text so the user sees the real reason instead of a guess.
+async function readServerError(response) {
+  const body = await response.json().catch(() => ({}));
+  return typeof body.detail === 'string' ? body.detail : '';
+}
+
+// The single place that talks to the API, so every failure looks the same to the rest of the code.
+async function callForecastApi(path, options = {}, timeoutMs = LAB_REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LAB_REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(LAB_API_URL + path, { headers, signal: controller.signal });
-    if (response.status === 401) throw new Error('API key missing or wrong');
-    if (!response.ok) throw new Error(`${path} failed with status ${response.status}`);
+    const response = await fetch(LAB_API_URL + path, { ...options, headers: buildLabHeaders(), signal: controller.signal });
+    if (!response.ok) {
+      const serverText = await readServerError(response);
+      throw makeLabError('http', response.status, `${path} failed (status ${response.status}) ${serverText}`.trim());
+    }
     return await response.json();
+  } catch (error) {
+    throw classifyFetchError(error, path);
   } finally {
     clearTimeout(timer);
   }
 }
+
+// Asks the open health endpoint whether the server itself is running.
+async function isServerAlive() {
+  try {
+    await callForecastApi('/health', {}, 5000);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+// Explains an API failure in plain words so the user knows what to fix.
+async function describeApiError(error) {
+  if (error.status === 401) return 'API key missing or wrong. Open the dashboard through /ui so the key is injected.';
+  if (error.status === 404) return 'No prediction yet. Press Refresh to sync bars, or run live_feed.py.';
+  if (error.kind === 'http') return `Server is running but returned an error: ${error.message}`;
+  if (await isServerAlive()) return `Server is running but slow or busy (${error.message}). Try Refresh in a minute.`;
+  return `Forecast API not reachable at ${LAB_API_URL}. Start it with: uvicorn serve_api:app --port 8000`;
+}
+
+// Separates real API trouble from drawing bugs, which used to be misreported as "not reachable".
+async function reportLabError(error) {
+  console.error('Indicator Lab problem:', error);
+  const message = error.kind
+    ? await describeApiError(error)
+    : `Display problem: ${error.message}. Open the browser console (F12) for details.`;
+  showLabStatus(message, true);
+}
+
+// ───────────────────────── SMALL HELPERS ─────────────────────────
 
 // Writes text into an element by id and ignores ids that are not on the page.
 function setLabText(elementId, text) {
@@ -55,6 +127,11 @@ function fillLabFields(textById) {
 // Shows prices with five decimals, the usual EUR/USD precision.
 function formatPrice(value) {
   return Number.isFinite(value) ? value.toFixed(5) : '—';
+}
+
+// Formats any number with fixed decimals and shows a dash instead of crashing on missing values.
+function formatNumber(value, decimals) {
+  return Number.isFinite(value) ? value.toFixed(decimals) : '—';
 }
 
 // Capitalises a word like "up" so it reads nicely in a card.
@@ -83,19 +160,43 @@ function isLayerOn(checkboxId) {
   return checkbox ? checkbox.checked : true;
 }
 
+// ───────────────────────── LOCAL TIME ─────────────────────────
+
+// Names the viewer's time zone so the screen always says which clock it uses.
+function getBrowserTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+}
+
+// Converts UTC chart seconds to the viewer's clock so this chart matches TradingView.
+function formatLocalTime(utcSeconds) {
+  const options = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false };
+  return new Date(utcSeconds * 1000).toLocaleString([], options);
+}
+
+// Labels the time axis in local time, showing dates at day boundaries and hours otherwise.
+function formatLocalTick(utcSeconds, tickMarkType) {
+  const date = new Date(utcSeconds * 1000);
+  if (tickMarkType < 3) return date.toLocaleDateString([], { day: '2-digit', month: 'short' });
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 // ───────────────────────── CHART SETUP ─────────────────────────
 
-// Builds the empty chart with the same dark theme as the rest of the dashboard.
-function createChartShell(container) {
-  return LightweightCharts.createChart(container, {
+// Collects the chart look and the local-time formatters in one place.
+function buildChartOptions(container) {
+  return {
     width: container.clientWidth,
     height: container.clientHeight,
     layout: { background: { color: '#111823' }, textColor: '#8995a8', fontSize: 11 },
     grid: { vertLines: { color: '#1b2533' }, horzLines: { color: '#1b2533' } },
     rightPriceScale: { borderColor: '#242e3b' },
-    timeScale: { borderColor: '#242e3b', timeVisible: true, secondsVisible: false },
+    timeScale: {
+      borderColor: '#242e3b', timeVisible: true, secondsVisible: false,
+      tickMarkFormatter: formatLocalTick,
+    },
+    localization: { timeFormatter: formatLocalTime },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-  });
+  };
 }
 
 // Adds the candles plus the two overlay lines (adaptive stop and Lorentzian kernel).
@@ -123,7 +224,7 @@ function keepChartSized(container) {
 function buildLabChart() {
   const container = document.getElementById('lab-chart');
   container.replaceChildren();
-  labChart = createChartShell(container);
+  labChart = LightweightCharts.createChart(container, buildChartOptions(container));
   addChartSeries();
   keepChartSized(container);
 }
@@ -259,9 +360,9 @@ function renderStopCard(stop) {
   fillLabFields({
     'lab-stop-trend': capitalise(stop.trend),
     'lab-stop-level': formatPrice(stop.level),
-    'lab-stop-distance': `${stop.distance_pips.toFixed(1)} pips`,
-    'lab-stop-atr': Number.isFinite(stop.atr_pips) ? `${stop.atr_pips.toFixed(1)} pips` : '—',
-    'lab-stop-key': `${stop.key_multiplier.toFixed(2)} × base key 3.0`,
+    'lab-stop-distance': `${formatNumber(stop.distance_pips, 1)} pips`,
+    'lab-stop-atr': `${formatNumber(stop.atr_pips, 1)} pips`,
+    'lab-stop-key': `${formatNumber(stop.key_multiplier, 2)} × base key 3.0`,
     'lab-stop-flip': describeFlip(stop.flip),
   });
 }
@@ -290,7 +391,7 @@ function makeForecastRow(forecast) {
   const row = document.createElement('tr');
   const values = [
     `${forecast.horizon_bars}h`, formatPrice(forecast.price_p10), formatPrice(forecast.price_p50),
-    formatPrice(forecast.price_p90), forecast.band_width_pips.toFixed(1), forecast.model,
+    formatPrice(forecast.price_p90), formatNumber(forecast.band_width_pips, 1), forecast.model,
   ];
   values.forEach(text => row.appendChild(makeTableCell(text)));
   return row;
@@ -310,7 +411,22 @@ function renderAllPanels(prediction) {
   renderForecastTable(prediction);
 }
 
-// ───────────────────────── LOADING + PAGE WIRING ─────────────────────────
+// ───────────────────────── FRESHNESS ─────────────────────────
+
+// Works out how many hours old the newest bar is, so stale forecasts are never silent.
+function getDataAgeHours(prediction) {
+  return (Date.now() - new Date(prediction.as_of).getTime()) / MILLISECONDS_PER_HOUR;
+}
+
+// Builds the status line and warns loudly when the forecast is built on old data.
+function describeFreshness(prediction) {
+  const ageHours = getDataAgeHours(prediction);
+  const lastBarText = formatLocalTime(new Date(prediction.as_of).getTime() / 1000);
+  const details = `Last bar ${lastBarText} (${getBrowserTimeZone()}) · model ${prediction.model_version}`;
+  if (ageHours <= STALE_WARNING_HOURS) return { text: `Updated · ${details}`, isWarning: false };
+  const warning = `Data is ${Math.round(ageHours)} h old (market closed, or sync needed). Press Refresh to sync.`;
+  return { text: `${warning} ${details}`, isWarning: true };
+}
 
 // Shows the last update time or the failure reason under the chart.
 function showLabStatus(message, isError) {
@@ -319,52 +435,106 @@ function showLabStatus(message, isError) {
   status.style.color = isError ? '#f05262' : '';
 }
 
-// Turns a raw error into a short message that tells the user what to fix.
-function describeLabError(error) {
-  if (error.message.includes('key')) return 'API key missing or wrong. Open the dashboard through /ui so the key is injected.';
-  if (error.message.includes('status 404')) return 'No prediction yet. Run live_feed.py or press Sync on the dashboard.';
-  return `Forecast API not reachable at ${LAB_API_URL}. Start it with: uvicorn serve_api:app --port 8000`;
+// ───────────────────────── LOADING + SYNC ─────────────────────────
+
+// Fetches bars and the latest prediction together.
+async function fetchLabData() {
+  const barCount = document.getElementById('lab-bar-count').value;
+  const [barsResponse, prediction] = await Promise.all([
+    callForecastApi(`/bars?limit=${barCount}`),
+    callForecastApi('/latest'),
+  ]);
+  return { barsResponse, prediction };
 }
 
-// Fetches bars and the latest prediction together, then redraws the chart and panels.
+// Draws the chart, the panels and the freshness line from one fetched data set.
+function drawLabData({ barsResponse, prediction }) {
+  labRows = buildChartRows(barsResponse);
+  labLatestPrediction = prediction;
+  drawRowsOnChart();
+  fitChartOnce();
+  renderAllPanels(prediction);
+  const freshness = describeFreshness(prediction);
+  showLabStatus(freshness.text, freshness.isWarning);
+}
+
+// Loads and draws everything, and guards against two loads running at the same time.
 async function loadIndicatorData() {
+  if (isLabLoading) return;
+  isLabLoading = true;
   try {
-    const barCount = document.getElementById('lab-bar-count').value;
-    const [barsResponse, prediction] = await Promise.all([
-      callForecastApi(`/bars?limit=${barCount}`),
-      callForecastApi('/latest'),
-    ]);
-    labRows = buildChartRows(barsResponse);
-    labLatestPrediction = prediction;
-    drawRowsOnChart();
-    fitChartOnce();
-    renderAllPanels(prediction);
-    showLabStatus(`Updated · last bar ${prediction.as_of.slice(0, 16).replace('T', ' ')} UTC · model ${prediction.model_version}`, false);
+    drawLabData(await fetchLabData());
   } catch (error) {
-    showLabStatus(describeLabError(error), true);
+    await reportLabError(error);
+  } finally {
+    isLabLoading = false;
   }
 }
 
-// Refreshes only while the Indicator Lab page is the one on screen.
+// Asks the server to pull new bars so the forecast is not stuck in the past.
+async function syncNewBars() {
+  try {
+    const result = await callForecastApi('/sync', { method: 'POST' }, LAB_SYNC_TIMEOUT_MS);
+    return result.added;
+  } catch (error) {
+    console.warn('Sync skipped:', error.message);
+    return 0;
+  }
+}
+
+// Locks the refresh button while syncing so repeated clicks cannot pile up requests.
+function setRefreshBusy(isBusy) {
+  const button = document.getElementById('lab-refresh');
+  button.disabled = isBusy;
+  button.textContent = isBusy ? '⏳ Syncing…' : '↻ Refresh';
+}
+
+// Syncs new bars first and then redraws, so Refresh really brings the page up to date.
+async function syncAndReload() {
+  setRefreshBusy(true);
+  showLabStatus('Syncing latest bars, this can take up to a minute…', false);
+  lastSyncTime = Date.now();
+  try {
+    await syncNewBars();
+    await loadIndicatorData();
+  } finally {
+    setRefreshBusy(false);
+  }
+}
+
+// Decides if data is old enough to sync, without hammering the data source every minute.
+function needsSync() {
+  if (!labLatestPrediction) return false;
+  const isOld = getDataAgeHours(labLatestPrediction) > SYNC_AFTER_HOURS;
+  const isCooledDown = Date.now() - lastSyncTime > SYNC_COOLDOWN_MS;
+  return isOld && isCooledDown;
+}
+
+// ───────────────────────── PAGE WIRING ─────────────────────────
+
+// Refreshes only while the Indicator Lab is on screen, syncing when the data has gone stale.
 function refreshWhileVisible() {
   const page = document.getElementById('page-indicators');
-  if (page.classList.contains('active') && !document.hidden) loadIndicatorData();
+  if (!page.classList.contains('active') || document.hidden) return;
+  if (needsSync()) syncAndReload();
+  else loadIndicatorData();
 }
 
 // Creates the chart the first time the page opens, because a hidden page has no width.
-function openIndicatorsPage() {
+async function openIndicatorsPage() {
   if (!window.LightweightCharts) {
     showLabStatus('Chart library did not load. Check your internet connection.', true);
     return;
   }
   if (!labChart) buildLabChart();
-  loadIndicatorData();
   if (!labRefreshTimer) labRefreshTimer = setInterval(refreshWhileVisible, LAB_REFRESH_MS);
+  await loadIndicatorData();
+  if (needsSync()) await syncAndReload();
 }
 
 // Connects the page's button, dropdowns and checkboxes to their actions.
 function wireIndicatorControls() {
-  document.getElementById('lab-refresh').addEventListener('click', loadIndicatorData);
+  document.getElementById('lab-refresh').addEventListener('click', syncAndReload);
   document.getElementById('lab-horizon').addEventListener('change', drawForecastLines);
   document.getElementById('lab-bar-count').addEventListener('change', () => {
     labFitNextDraw = true;

@@ -42,6 +42,7 @@ from features import load_ohlcv
 from inference_engine import BarRejected, PredictionEngine
 from store import Store
 from fastapi.staticfiles import StaticFiles
+from request_stats import install_request_counter
 
 import paper_trading
 
@@ -172,6 +173,8 @@ app.include_router(paper_trading.router)
 def require_key(x_api_key: Optional[str] = Header(None)):
     if API_KEY and not (x_api_key and secrets.compare_digest(x_api_key, API_KEY)):
         raise HTTPException(status_code=401, detail="missing or invalid X-API-Key")
+
+install_request_counter(app, require_key)
 #=========================================================================
 app.include_router(build_router(require_key))
 #=========================================================================
